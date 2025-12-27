@@ -166,12 +166,12 @@ def get_video_resolution(video_file):
     return "Unknown"
 
 def get_audio_codec(video_file):
-    """Get audio codec, preferring German (ger/deu) tracks"""
+    """Get audio codec with detailed profile info, preferring German (ger/deu) tracks"""
     try:
         cmd = [
             'ffprobe', '-v', 'error',
             '-select_streams', 'a',
-            '-show_entries', 'stream=index,codec_name:stream_tags=language',
+            '-show_entries', 'stream=index,codec_name,profile,channels:stream_tags=language,title',
             '-of', 'json',
             video_file
         ]
@@ -180,41 +180,71 @@ def get_audio_codec(video_file):
             data = json.loads(result.stdout)
             if 'streams' in data and len(data['streams']) > 0:
                 # Try to find German audio track first
-                german_track = None
-                first_track = None
+                german_stream = None
+                first_stream = None
                 
                 for stream in data['streams']:
-                    codec = stream.get('codec_name', 'Unknown')
                     tags = stream.get('tags', {})
                     language = tags.get('language', '').lower()
                     
-                    if first_track is None:
-                        first_track = codec
+                    if first_stream is None:
+                        first_stream = stream
                     
                     if language in ['ger', 'deu', 'de']:
-                        german_track = codec
+                        german_stream = stream
                         break
                 
-                # Return German track if found, otherwise first track
-                codec_name = german_track if german_track else first_track
+                # Use German track if found, otherwise first track
+                selected_stream = german_stream if german_stream else first_stream
                 
-                # Format codec name to be more readable
-                codec_map = {
-                    'aac': 'AAC',
-                    'ac3': 'AC3 (Dolby Digital)',
-                    'eac3': 'EAC3 (Dolby Digital Plus)',
-                    'truehd': 'TrueHD (Dolby TrueHD)',
-                    'dts': 'DTS',
-                    'dca': 'DTS',
-                    'flac': 'FLAC',
-                    'mp3': 'MP3',
-                    'opus': 'Opus',
-                    'vorbis': 'Vorbis',
-                    'pcm_s16le': 'PCM',
-                    'pcm_s24le': 'PCM 24-bit'
-                }
+                codec_name = selected_stream.get('codec_name', 'Unknown')
+                profile = selected_stream.get('profile', '').lower()
+                channels = selected_stream.get('channels', 0)
+                tags = selected_stream.get('tags', {})
+                title = tags.get('title', '').lower()
                 
-                return codec_map.get(codec_name, codec_name.upper())
+                # Detect Atmos from title or profile
+                is_atmos = 'atmos' in title or 'atmos' in profile
+                is_imax = 'imax' in title
+                
+                # Format codec name with detailed profile information
+                if codec_name == 'ac3':
+                    return 'Dolby Digital'
+                elif codec_name == 'eac3':
+                    if is_atmos:
+                        return 'Dolby Digital Plus (Atmos)'
+                    return 'Dolby Digital Plus'
+                elif codec_name == 'truehd':
+                    if is_atmos:
+                        return 'Dolby TrueHD (Atmos)'
+                    return 'Dolby TrueHD'
+                elif codec_name in ['dts', 'dca']:
+                    # Detect DTS variants
+                    if 'dts:x' in title or 'dtsx' in title:
+                        if is_imax:
+                            return 'DTS:X (IMAX)'
+                        return 'DTS:X'
+                    elif 'ma' in profile or 'dts-hd ma' in title or 'dts-hd master audio' in title:
+                        return 'DTS-HD MA'
+                    elif 'hra' in profile or 'dts-hd hra' in title or 'dts-hd high resolution' in title:
+                        return 'DTS-HD HRA'
+                    elif 'hd' in profile or 'dts-hd' in title:
+                        return 'DTS-HD'
+                    return 'DTS'
+                elif codec_name == 'aac':
+                    return 'AAC'
+                elif codec_name == 'flac':
+                    return 'FLAC'
+                elif codec_name == 'mp3':
+                    return 'MP3'
+                elif codec_name == 'opus':
+                    return 'Opus'
+                elif codec_name == 'vorbis':
+                    return 'Vorbis'
+                elif codec_name.startswith('pcm'):
+                    return 'PCM'
+                else:
+                    return codec_name.upper()
     except Exception as e:
         print(f"Error getting audio codec: {e}")
     return "Unknown"
