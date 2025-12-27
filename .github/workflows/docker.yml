@@ -1,0 +1,31 @@
+name: Build and Export Docker Image
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-export:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        run: |
+          docker build -t dovi-detector:latest .
+
+      - name: Save Docker image as .tar
+        run: |
+          docker save dovi-detector:latest -o dovi-detector.tar
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: dovi-detector-image
+          path: dovi-detector.tar
