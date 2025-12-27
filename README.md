@@ -121,6 +121,10 @@ DoVi-Detector/
 | Variable | Standard | Beschreibung |
 |----------|----------|-------------|
 | `MEDIA_PATH` | `/media` | Pfad zum Medien-Verzeichnis |
+| `HEVC_EXTRACT_DURATION` | `3` | Anzahl der Sekunden, die vom Video extrahiert werden (erhöhen, wenn RPU-Daten später im Stream erscheinen) |
+| `RPU_INFO_MAX_LENGTH` | `500` | Maximale Länge der RPU-Info in der Datenbank |
+| `FILE_WRITE_DELAY` | `5` | Wartezeit in Sekunden nach Dateierstellung vor dem Scan |
+| `AUTO_REFRESH_INTERVAL` | `60` | Auto-Refresh-Intervall der Web-UI in Sekunden |
 
 ## Docker Compose Optionen 🐳
 

@@ -22,6 +22,7 @@ DB_FILE = os.path.join(DATA_DIR, 'scanned_files.json')
 RPU_INFO_MAX_LENGTH = int(os.environ.get('RPU_INFO_MAX_LENGTH', '500'))
 FILE_WRITE_DELAY = int(os.environ.get('FILE_WRITE_DELAY', '5'))
 AUTO_REFRESH_INTERVAL = int(os.environ.get('AUTO_REFRESH_INTERVAL', '60'))
+HEVC_EXTRACT_DURATION = int(os.environ.get('HEVC_EXTRACT_DURATION', '3'))
 
 # Supported video formats
 SUPPORTED_FORMATS = {'.mkv', '.mp4', '.m4v', '.ts', '.hevc'}
@@ -81,11 +82,11 @@ def save_database():
         print(f"Error saving database: {e}")
 
 def extract_hevc_stream(video_file, output_file):
-    """Extract HEVC stream from video file using ffmpeg (first 3 seconds only)"""
+    """Extract HEVC stream from video file using ffmpeg (first N seconds, configurable via HEVC_EXTRACT_DURATION)"""
     try:
         cmd = [
             'ffmpeg', '-i', video_file,
-            '-t', '3',  # Extract only first 3 seconds
+            '-t', str(HEVC_EXTRACT_DURATION),  # Extract first N seconds (configurable)
             '-map', '0:v:0',
             '-c', 'copy',
             '-bsf:v', 'hevc_mp4toannexb',
@@ -94,6 +95,8 @@ def extract_hevc_stream(video_file, output_file):
             '-y'
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            print(f"Error extracting HEVC stream from {video_file}: ffmpeg stderr: {result.stderr}")
         return result.returncode == 0
     except Exception as e:
         print(f"Error extracting HEVC stream: {e}")
@@ -104,6 +107,8 @@ def extract_rpu(hevc_file, rpu_file):
     try:
         cmd = ['dovi_tool', 'extract-rpu', hevc_file, '-o', rpu_file]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            print(f"Error extracting RPU from {hevc_file}: dovi_tool stderr: {result.stderr}")
         return result.returncode == 0 and os.path.exists(rpu_file)
     except Exception as e:
         print(f"Error extracting RPU: {e}")
@@ -116,6 +121,8 @@ def analyze_rpu(rpu_file):
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if result.returncode == 0:
             return result.stdout
+        else:
+            print(f"Error analyzing RPU {rpu_file}: dovi_tool stderr: {result.stderr}")
         return None
     except Exception as e:
         print(f"Error analyzing RPU: {e}")
