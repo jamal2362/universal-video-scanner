@@ -443,6 +443,22 @@ def get_video_resolution(video_file):
         print(f"Error getting resolution: {e}")
     return "Unknown"
 
+def get_channel_format(channels):
+    """Convert channel count to standard format string"""
+    try:
+        channels = int(channels)
+        channel_map = {
+            1: "1.0",
+            2: "2.0",
+            3: "2.1",
+            6: "5.1",
+            7: "6.1",
+            8: "7.1"
+        }
+        return channel_map.get(channels, f"{channels}.0")
+    except (ValueError, TypeError):
+        return ""
+
 def get_audio_info_mediainfo(video_file):
     """Get audio information using MediaInfo"""
     try:
@@ -485,7 +501,13 @@ def get_audio_codec(video_file):
             format_commercial = selected_track.get('Format_Commercial_IfAny', '')
             format_name = selected_track.get('Format', '')
             format_profile = selected_track.get('Format_Profile', '')
+            format_additional = selected_track.get('Format_AdditionalFeatures', '')
             title = selected_track.get('Title', '')
+            channels = selected_track.get('Channels', '')
+            
+            # Get channel format string
+            channel_str = get_channel_format(channels)
+            channel_suffix = f" {channel_str}" if channel_str else ""
             
             # Check for IMAX in title
             is_imax = 'imax' in title.lower()
@@ -494,52 +516,57 @@ def get_audio_codec(video_file):
             # Dolby Atmos detection
             if 'Dolby Atmos' in format_commercial or 'Atmos' in format_commercial:
                 if 'TrueHD' in format_name or 'TrueHD' in format_commercial:
-                    return 'Dolby TrueHD (Atmos)'
+                    return f'Dolby TrueHD (Atmos){channel_suffix}'
                 elif 'E-AC-3' in format_name or 'E-AC-3' in format_commercial:
-                    return 'Dolby Digital Plus (Atmos)'
+                    return f'Dolby Digital Plus (Atmos){channel_suffix}'
                 elif 'AC-3' in format_name:
-                    return 'Dolby Digital (Atmos)'
+                    return f'Dolby Digital (Atmos){channel_suffix}'
                 else:
-                    return 'Dolby Atmos'
+                    return f'Dolby Atmos{channel_suffix}'
             
-            # DTS:X detection
-            if 'DTS:X' in format_commercial or 'DTS-X' in format_commercial or 'DTS XLL X' in format_name or 'XLL X' in format_name:
+            # DTS:X detection - check multiple fields before DTS-HD MA
+            # Check format_commercial, format_name, format_additional, and title
+            if ('DTS:X' in format_commercial or 'DTS-X' in format_commercial or 
+                'DTS XLL X' in format_name or 'XLL X' in format_name or
+                'DTS:X' in format_additional or
+                'DTS:X' in title or 'DTS-X' in title):
                 if is_imax:
-                    return 'DTS:X (IMAX)'
-                return 'DTS:X'
+                    return f'DTS:X (IMAX){channel_suffix}'
+                return f'DTS:X{channel_suffix}'
             
             # Standard format detection based on Format field
             if format_name == 'MLP FBA' or 'TrueHD' in format_name:
-                return 'Dolby TrueHD'
+                return f'Dolby TrueHD{channel_suffix}'
             elif format_name == 'E-AC-3' or 'E-AC-3' in format_commercial:
-                return 'Dolby Digital Plus'
+                return f'Dolby Digital Plus{channel_suffix}'
             elif format_name == 'AC-3':
-                return 'Dolby Digital'
+                return f'Dolby Digital{channel_suffix}'
             elif 'DTS XLL' in format_name or 'DTS-HD Master Audio' in format_commercial:
-                return 'DTS-HD MA'
+                return f'DTS-HD MA{channel_suffix}'
             elif 'DTS XBR' in format_name or 'DTS-HD High Resolution' in format_commercial:
-                return 'DTS-HD HRA'
+                return f'DTS-HD HRA{channel_suffix}'
             elif format_name == 'DTS':
                 if 'DTS-HD' in format_commercial:
-                    return 'DTS-HD'
-                return 'DTS'
+                    return f'DTS-HD{channel_suffix}'
+                return f'DTS{channel_suffix}'
             elif format_name == 'AAC':
-                return 'AAC'
+                return f'AAC{channel_suffix}'
             elif format_name == 'FLAC':
-                return 'FLAC'
+                return f'FLAC{channel_suffix}'
             elif format_name == 'MPEG Audio':
                 if 'Layer 3' in format_profile:
-                    return 'MP3'
-                return 'MPEG Audio'
+                    return f'MP3{channel_suffix}'
+                return f'MPEG Audio{channel_suffix}'
             elif format_name == 'Opus':
-                return 'Opus'
+                return f'Opus{channel_suffix}'
             elif format_name == 'Vorbis':
-                return 'Vorbis'
+                return f'Vorbis{channel_suffix}'
             elif format_name == 'PCM':
-                return 'PCM'
+                return f'PCM{channel_suffix}'
             else:
                 # Return the format name if we didn't match any specific pattern
-                return format_name if format_name else 'Unknown'
+                codec_name = format_name if format_name else 'Unknown'
+                return f'{codec_name}{channel_suffix}'
     
     # Fallback to ffprobe if MediaInfo failed
     try:
@@ -578,47 +605,51 @@ def get_audio_codec(video_file):
                 tags = selected_stream.get('tags', {})
                 title = tags.get('title', '').lower()
                 
+                # Get channel format string
+                channel_str = get_channel_format(channels)
+                channel_suffix = f" {channel_str}" if channel_str else ""
+                
                 # Detect Atmos from title or profile
                 is_atmos = 'atmos' in title or 'atmos' in profile
                 is_imax = 'imax' in title
                 
                 # Format codec name with detailed profile information
                 if codec_name == 'ac3':
-                    return 'Dolby Digital'
+                    return f'Dolby Digital{channel_suffix}'
                 elif codec_name == 'eac3':
                     if is_atmos:
-                        return 'Dolby Digital Plus (Atmos)'
-                    return 'Dolby Digital Plus'
+                        return f'Dolby Digital Plus (Atmos){channel_suffix}'
+                    return f'Dolby Digital Plus{channel_suffix}'
                 elif codec_name == 'truehd':
                     if is_atmos:
-                        return 'Dolby TrueHD (Atmos)'
-                    return 'Dolby TrueHD'
+                        return f'Dolby TrueHD (Atmos){channel_suffix}'
+                    return f'Dolby TrueHD{channel_suffix}'
                 elif codec_name in ['dts', 'dca']:
-                    if 'dts:x' in title or 'dtsx' in title:
+                    if 'dts:x' in title or 'dtsx' in title or 'dts-x' in title:
                         if is_imax:
-                            return 'DTS:X (IMAX)'
-                        return 'DTS:X'
+                            return f'DTS:X (IMAX){channel_suffix}'
+                        return f'DTS:X{channel_suffix}'
                     elif 'ma' in profile or 'dts-hd ma' in title or 'dts-hd master audio' in title:
-                        return 'DTS-HD MA'
+                        return f'DTS-HD MA{channel_suffix}'
                     elif 'hra' in profile or 'dts-hd hra' in title or 'dts-hd high resolution' in title:
-                        return 'DTS-HD HRA'
+                        return f'DTS-HD HRA{channel_suffix}'
                     elif 'hd' in profile or 'dts-hd' in title:
-                        return 'DTS-HD'
-                    return 'DTS'
+                        return f'DTS-HD{channel_suffix}'
+                    return f'DTS{channel_suffix}'
                 elif codec_name == 'aac':
-                    return 'AAC'
+                    return f'AAC{channel_suffix}'
                 elif codec_name == 'flac':
-                    return 'FLAC'
+                    return f'FLAC{channel_suffix}'
                 elif codec_name == 'mp3':
-                    return 'MP3'
+                    return f'MP3{channel_suffix}'
                 elif codec_name == 'opus':
-                    return 'Opus'
+                    return f'Opus{channel_suffix}'
                 elif codec_name == 'vorbis':
-                    return 'Vorbis'
+                    return f'Vorbis{channel_suffix}'
                 elif codec_name.startswith('pcm'):
-                    return 'PCM'
+                    return f'PCM{channel_suffix}'
                 else:
-                    return codec_name.upper()
+                    return f'{codec_name.upper()}{channel_suffix}'
     except Exception as e:
         print(f"Error getting audio codec from ffprobe: {e}")
     return "Unknown"
