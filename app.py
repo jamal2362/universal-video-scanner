@@ -169,19 +169,27 @@ def cleanup_database():
     removed_count = 0
     paths_to_remove = []
     
+    # Check file existence outside the lock to avoid blocking
     with scan_lock:
-        for file_path in list(scanned_files.keys()):
-            if not os.path.exists(file_path):
-                paths_to_remove.append(file_path)
-        
-        for file_path in paths_to_remove:
-            del scanned_files[file_path]
-            scanned_paths.discard(file_path)
-            removed_count += 1
-            print(f"✗ Removed from database (file not found): {file_path}")
-        
-        if removed_count > 0:
-            save_database()
+        paths_to_check = list(scanned_files.keys())
+    
+    # Check which files no longer exist (outside lock)
+    for file_path in paths_to_check:
+        if not os.path.exists(file_path):
+            paths_to_remove.append(file_path)
+    
+    # Remove non-existent files from database (with lock)
+    if paths_to_remove:
+        with scan_lock:
+            for file_path in paths_to_remove:
+                if file_path in scanned_files:  # Double-check in case it was modified
+                    del scanned_files[file_path]
+                    scanned_paths.discard(file_path)
+                    removed_count += 1
+                    print(f"✗ Removed from database (file not found): {file_path}")
+            
+            if removed_count > 0:
+                save_database()
     
     return removed_count
 
@@ -821,7 +829,7 @@ def manual_scan():
         for file_path in new_files:
             try:
                 result = scan_video_file(file_path)
-                if result.get('success', False):
+                if result and result.get('success', False):
                     scanned_new_count += 1
             except Exception as e:
                 print(f"Error scanning {file_path}: {e}")
