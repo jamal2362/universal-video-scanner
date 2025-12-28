@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    mediainfo \
     python3 \
     python3-pip \
     wget \

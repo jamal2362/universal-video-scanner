@@ -443,8 +443,105 @@ def get_video_resolution(video_file):
         print(f"Error getting resolution: {e}")
     return "Unknown"
 
+def get_audio_info_mediainfo(video_file):
+    """Get audio information using MediaInfo"""
+    try:
+        cmd = ['mediainfo', '--Output=JSON', video_file]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if data.get('media') and 'track' in data['media']:
+                audio_tracks = [track for track in data['media']['track'] if track.get('@type') == 'Audio']
+                if audio_tracks:
+                    return audio_tracks
+    except Exception as e:
+        print(f"Error getting audio info from MediaInfo: {e}")
+    return None
+
 def get_audio_codec(video_file):
     """Get audio codec with detailed profile info, preferring German (ger/deu) tracks"""
+    # Try MediaInfo first for better format detection (especially Atmos and DTS:X)
+    audio_tracks = get_audio_info_mediainfo(video_file)
+    if audio_tracks:
+        # Try to find German audio track first
+        german_track = None
+        first_track = None
+        
+        for track in audio_tracks:
+            language = track.get('Language', '').lower()
+            
+            if first_track is None:
+                first_track = track
+            
+            if language in ['ger', 'deu', 'de', 'german']:
+                german_track = track
+                break
+        
+        # Use German track if found, otherwise first track
+        selected_track = german_track if german_track else first_track
+        
+        if selected_track:
+            # Extract format information from MediaInfo
+            format_commercial = selected_track.get('Format_Commercial_IfAny', '')
+            format_name = selected_track.get('Format', '')
+            format_profile = selected_track.get('Format_Profile', '')
+            title = selected_track.get('Title', '')
+            
+            # Check for IMAX in title
+            is_imax = 'imax' in title.lower()
+            
+            # Detect formats using MediaInfo's commercial names and format details
+            # Dolby Atmos detection
+            if 'Dolby Atmos' in format_commercial or 'Atmos' in format_commercial:
+                if 'TrueHD' in format_name or 'TrueHD' in format_commercial:
+                    return 'Dolby TrueHD (Atmos)'
+                elif 'E-AC-3' in format_name or 'E-AC-3' in format_commercial:
+                    return 'Dolby Digital Plus (Atmos)'
+                elif 'AC-3' in format_name:
+                    return 'Dolby Digital (Atmos)'
+                else:
+                    return 'Dolby Atmos'
+            
+            # DTS:X detection
+            if 'DTS:X' in format_commercial or 'DTS-X' in format_commercial or 'DTS XLL X' in format_name or 'XLL X' in format_name:
+                if is_imax:
+                    return 'DTS:X (IMAX)'
+                return 'DTS:X'
+            
+            # Standard format detection based on Format field
+            if format_name == 'MLP FBA' or 'TrueHD' in format_name:
+                return 'Dolby TrueHD'
+            elif format_name == 'E-AC-3' or 'E-AC-3' in format_commercial:
+                return 'Dolby Digital Plus'
+            elif format_name == 'AC-3':
+                return 'Dolby Digital'
+            elif 'DTS XLL' in format_name or 'DTS-HD Master Audio' in format_commercial:
+                return 'DTS-HD MA'
+            elif 'DTS XBR' in format_name or 'DTS-HD High Resolution' in format_commercial:
+                return 'DTS-HD HRA'
+            elif format_name == 'DTS':
+                if 'DTS-HD' in format_commercial:
+                    return 'DTS-HD'
+                return 'DTS'
+            elif format_name == 'AAC':
+                return 'AAC'
+            elif format_name == 'FLAC':
+                return 'FLAC'
+            elif format_name == 'MPEG Audio':
+                if 'Layer 3' in format_profile:
+                    return 'MP3'
+                return 'MPEG Audio'
+            elif format_name == 'Opus':
+                return 'Opus'
+            elif format_name == 'Vorbis':
+                return 'Vorbis'
+            elif format_name == 'PCM':
+                return 'PCM'
+            else:
+                # Return the format name if we didn't match any specific pattern
+                return format_name if format_name else 'Unknown'
+    
+    # Fallback to ffprobe if MediaInfo failed
     try:
         cmd = [
             'ffprobe', '-v', 'error',
@@ -523,7 +620,7 @@ def get_audio_codec(video_file):
                 else:
                     return codec_name.upper()
     except Exception as e:
-        print(f"Error getting audio codec: {e}")
+        print(f"Error getting audio codec from ffprobe: {e}")
     return "Unknown"
 
 def scan_video_file(file_path):
