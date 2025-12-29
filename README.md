@@ -122,6 +122,37 @@ DoVi-Detector/
 | `MEDIA_PATH` | `/media` | Path to media directory |
 | `FILE_WRITE_DELAY` | `5` | Wait time in seconds after file creation before scanning |
 | `AUTO_REFRESH_INTERVAL` | `60` | Auto-refresh interval of web UI in seconds |
+| `TMDB_API_KEY` | `` | TMDB API key for fetching movie posters (optional) |
+
+### TMDB API Integration (Optional)
+
+To display movie posters instead of filenames in the web interface:
+
+1. Get a free API key from [TMDB](https://www.themoviedb.org/settings/api)
+2. Add it to your `docker-compose.yml`:
+
+```yaml
+environment:
+  - TMDB_API_KEY=your_api_key_here
+```
+
+Or create a `.env` file in the project root:
+
+```
+TMDB_API_KEY=your_api_key_here
+```
+
+**Filename Pattern for TMDB ID:**
+- Include `{tmdb-12345}` in your filename (e.g., `Movie Name {tmdb-12345}.mkv`)
+- If no TMDB ID is found, the app will search TMDB by the extracted movie name
+
+**Poster Caching:**
+- Poster images are automatically downloaded and cached in `/app/data/posters/`
+- Cached posters are reused on subsequent page loads, reducing bandwidth and load times
+- Existing posters are migrated to cache on application startup
+
+**Without TMDB API Key:**
+- The app will still work normally, displaying filenames instead of posters
 
 ## Docker Compose Options 🐳
 

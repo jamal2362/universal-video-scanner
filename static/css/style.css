@@ -251,6 +251,23 @@ tbody tr:hover {
     font-size: 0.9em;
 }
 
+.poster-img {
+    max-height: 150px;
+    width: auto;
+    border-radius: 5px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    transition: transform 0.3s ease;
+}
+
+.poster-img:hover {
+    transform: scale(1.05);
+}
+
+.filename-fallback {
+    display: block;
+    word-break: break-word;
+}
+
 .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -356,5 +373,70 @@ tbody tr:hover {
     
     td:last-child {
         padding-bottom: 0;
+    }
+    
+    /* Responsive poster images on mobile */
+    .poster-img {
+        max-height: 120px;
+        max-width: 100%;
+        width: auto;
+    }
+}
+
+/* Mobile landscape mode (screens wider than tall, under 768px height) */
+@media screen and (max-height: 768px) and (orientation: landscape) {
+    body {
+        padding: 5px;
+    }
+    
+    h1 {
+        font-size: 1.5em;
+    }
+    
+    .subtitle {
+        font-size: 0.9em;
+    }
+    
+    header {
+        padding: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .controls {
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+    
+    table {
+        font-size: 0.9em;
+    }
+    
+    th, td {
+        padding: 8px;
+    }
+    
+    /* Smaller posters in landscape mode */
+    .poster-img {
+        max-height: 80px;
+    }
+    
+    .hdr-badge, .el-badge {
+        font-size: 0.8em;
+        padding: 4px 8px;
+    }
+}
+
+/* Accessibility: Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .poster-img {
+        transition: none;
+    }
+    
+    .poster-img:hover {
+        transform: none;
+    }
+    
+    .spinner {
+        animation: none;
     }
 }

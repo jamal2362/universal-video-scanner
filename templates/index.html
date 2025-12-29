@@ -46,7 +46,7 @@
         <table>
             <thead>
                 <tr>
-                    <th>Dateiname</th>
+                    <th>Poster / Dateiname</th>
                     <th>HDR Format</th>
                     <th>Auflösung</th>
                     <th>Audio Codec</th>
@@ -55,7 +55,13 @@
             <tbody>
                 {% for file in files %}
                 <tr>
-                    <td data-label="Dateiname" title="{{ file.path }}">{{ file.filename }}</td>
+                    <td data-label="Poster / Dateiname" title="{{ file.filename }}">
+                        {% if file.poster_url %}
+                        <img src="{{ file.poster_url }}" alt="{{ file.filename }}" class="poster-img" loading="lazy">
+                        {% else %}
+                        <span class="filename-fallback">{{ file.filename }}</span>
+                        {% endif %}
+                    </td>
                     <td data-label="HDR Format">
                         <span class="hdr-badge hdr-{{ file.hdr_format.lower().replace(' ', '-').replace('+', 'plus') }}">
                             {{ file.hdr_detail }}

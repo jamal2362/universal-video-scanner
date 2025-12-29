@@ -7,16 +7,39 @@ import tempfile
 import threading
 import time
 import urllib.request
+import re
+import hashlib
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request
+from urllib.parse import urlparse
+from flask import Flask, render_template, jsonify, request, send_file
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+
+try:
+    import requests
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+    print("Warning: 'requests' module not available. TMDB integration disabled.")
 
 # Configuration
 MEDIA_PATH = os.environ.get('MEDIA_PATH', '/media')
 DATA_DIR = '/app/data'
 TEMP_DIR = '/app/temp'
 DB_FILE = os.path.join(DATA_DIR, 'scanned_files.json')
+POSTER_CACHE_DIR = os.path.join(DATA_DIR, 'posters')
+TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
+
+# Compiled regex patterns for better performance
+TMDB_ID_PATTERN = re.compile(r'\{tmdb-(\d+)\}', re.IGNORECASE)
+YEAR_PATTERN = re.compile(r'\b(19|20)\d{2}\b')
+RESOLUTION_PATTERN = re.compile(r'\b(480|720|1080|2160)[pi]\b', re.IGNORECASE)
+CODEC_PATTERN = re.compile(r'\b(x264|x265|h264|h265|hevc)\b', re.IGNORECASE)
+SOURCE_PATTERN = re.compile(r'\b(BluRay|BRRip|WEBRip|WEB-DL|HDRip|DVDRip)\b', re.IGNORECASE)
+HDR_PATTERN = re.compile(r'\b(DV|HDR10\+?|HLG|SDR|Dolby[\.\s]?Vision)\b', re.IGNORECASE)
+BRACKET_PATTERN = re.compile(r'[\[\(].*?[\]\)]')
+SEPARATOR_PATTERN = re.compile(r'[._\-]')
+WHITESPACE_PATTERN = re.compile(r'\s+')
 
 # Static files configuration
 TEMPLATES_DIR = os.path.join(DATA_DIR, 'templates')
@@ -54,6 +77,7 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 os.makedirs(TEMPLATES_DIR, exist_ok=True)
 os.makedirs(CSS_DIR, exist_ok=True)
 os.makedirs(JS_DIR, exist_ok=True)
+os.makedirs(POSTER_CACHE_DIR, exist_ok=True)
 
 def download_static_files():
     """Download missing static files from GitHub"""
@@ -136,6 +160,224 @@ def cleanup_temp_directory():
     except Exception as e:
         print(f"Error cleaning temp directory: {e}")
 
+# TMDB API Integration Functions
+def extract_tmdb_id(filename):
+    """Extract TMDB ID from filename - pattern: {tmdb-12345}"""
+    match = TMDB_ID_PATTERN.search(filename)
+    if match:
+        return match.group(1)
+    return None
+
+def extract_movie_name(filename):
+    """Extract movie name from filename for search fallback"""
+    # Remove file extension
+    name = os.path.splitext(filename)[0]
+    
+    # Remove TMDB ID pattern if present
+    name = TMDB_ID_PATTERN.sub('', name)
+    
+    # Remove common patterns like year, quality, resolution, etc.
+    name = YEAR_PATTERN.sub('', name)
+    name = RESOLUTION_PATTERN.sub('', name)
+    name = CODEC_PATTERN.sub('', name)
+    name = SOURCE_PATTERN.sub('', name)
+    name = HDR_PATTERN.sub('', name)
+    name = BRACKET_PATTERN.sub('', name)
+    
+    # Replace common separators with spaces
+    name = SEPARATOR_PATTERN.sub(' ', name)
+    
+    # Clean up multiple spaces
+    name = WHITESPACE_PATTERN.sub(' ', name).strip()
+    
+    return name
+
+def get_tmdb_poster_by_id(tmdb_id, media_type='movie'):
+    """Fetch poster URL from TMDB API by ID"""
+    if not TMDB_API_KEY or not REQUESTS_AVAILABLE:
+        return None
+    
+    # Validate tmdb_id is numeric
+    if not tmdb_id or not isinstance(tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
+        print(f"Invalid TMDB ID: {tmdb_id}")
+        return None
+    
+    try:
+        url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
+        params = {'api_key': TMDB_API_KEY}
+        
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            poster_path = data.get('poster_path')
+            if poster_path:
+                return f'https://image.tmdb.org/t/p/w185{poster_path}'
+        elif response.status_code != 404:
+            print(f"TMDB API error for ID {tmdb_id}: HTTP {response.status_code}")
+    except requests.exceptions.Timeout:
+        print(f"TMDB API timeout for ID {tmdb_id}")
+    except requests.exceptions.RequestException as e:
+        print(f"TMDB API request error for ID {tmdb_id}: {e}")
+    except Exception as e:
+        print(f"Error fetching TMDB poster by ID {tmdb_id}: {e}")
+    
+    return None
+
+def search_tmdb_poster(movie_name, media_type='movie'):
+    """Search TMDB for movie/tv show and return poster URL"""
+    if not TMDB_API_KEY or not REQUESTS_AVAILABLE or not movie_name:
+        return None
+    
+    # Validate and sanitize movie_name
+    if not isinstance(movie_name, str):
+        return None
+    
+    # Trim and validate length
+    movie_name = movie_name.strip()
+    if len(movie_name) < 1 or len(movie_name) > 200:
+        print(f"Invalid movie name length: {len(movie_name)}")
+        return None
+    
+    try:
+        url = f'https://api.themoviedb.org/3/search/{media_type}'
+        params = {
+            'api_key': TMDB_API_KEY,
+            'query': movie_name
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get('results', [])
+            if results:
+                # Get first result
+                poster_path = results[0].get('poster_path')
+                if poster_path:
+                    return f'https://image.tmdb.org/t/p/w185{poster_path}'
+        elif response.status_code != 404:
+            print(f"TMDB API search error for '{movie_name}': HTTP {response.status_code}")
+    except requests.exceptions.Timeout:
+        print(f"TMDB API timeout searching for '{movie_name}'")
+    except requests.exceptions.RequestException as e:
+        print(f"TMDB API request error searching for '{movie_name}': {e}")
+    except Exception as e:
+        print(f"Error searching TMDB for '{movie_name}': {e}")
+    
+    return None
+
+def get_tmdb_poster(filename):
+    """Main function: Try ID first, then fallback to name search"""
+    if not TMDB_API_KEY or not REQUESTS_AVAILABLE:
+        return None, None
+    
+    # Try to extract TMDB ID first
+    tmdb_id = extract_tmdb_id(filename)
+    if tmdb_id:
+        print(f"  [TMDB] Found TMDB ID: {tmdb_id}")
+        # Try movie first
+        poster_url = get_tmdb_poster_by_id(tmdb_id, 'movie')
+        if poster_url:
+            print(f"  [TMDB] Poster found by ID (movie): {poster_url}")
+            return tmdb_id, poster_url
+        # Try TV show
+        poster_url = get_tmdb_poster_by_id(tmdb_id, 'tv')
+        if poster_url:
+            print(f"  [TMDB] Poster found by ID (TV): {poster_url}")
+            return tmdb_id, poster_url
+    
+    # Fallback: Search by name
+    movie_name = extract_movie_name(filename)
+    if movie_name:
+        print(f"  [TMDB] Searching by name: '{movie_name}'")
+        # Try movie search first
+        poster_url = search_tmdb_poster(movie_name, 'movie')
+        if poster_url:
+            print(f"  [TMDB] Poster found by search (movie): {poster_url}")
+            return None, poster_url
+        # Try TV search
+        poster_url = search_tmdb_poster(movie_name, 'tv')
+        if poster_url:
+            print(f"  [TMDB] Poster found by search (TV): {poster_url}")
+            return None, poster_url
+    
+    print(f"  [TMDB] No poster found for: {filename}")
+    return None, None
+
+
+def is_valid_tmdb_url(url):
+    """Validate URL is from TMDB to prevent SSRF attacks"""
+    if not url:
+        return False
+    
+    try:
+        parsed = urlparse(url)
+        # Check scheme is https
+        if parsed.scheme != 'https':
+            return False
+        # Check hostname is exactly image.tmdb.org (not a subdomain or similar domain)
+        if parsed.netloc != 'image.tmdb.org':
+            return False
+        # Check path starts with /t/p/
+        if not parsed.path.startswith('/t/p/'):
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def download_and_cache_poster(poster_url, cache_filename):
+    """Download poster image and cache it locally"""
+    if not poster_url:
+        return None
+    
+    # Validate URL is from TMDB to prevent SSRF attacks
+    if not is_valid_tmdb_url(poster_url):
+        print(f"  [CACHE] Invalid poster URL (not from TMDB): {poster_url}")
+        return poster_url
+    
+    cache_path = os.path.join(POSTER_CACHE_DIR, cache_filename)
+    
+    # Check if already cached
+    if os.path.exists(cache_path):
+        print(f"  [CACHE] Poster already cached: {cache_filename}")
+        return f'/poster/{cache_filename}'
+    
+    try:
+        print(f"  [CACHE] Downloading poster: {poster_url}")
+        response = requests.get(poster_url, timeout=10)
+        if response.status_code == 200:
+            # Save to cache
+            with open(cache_path, 'wb') as f:
+                f.write(response.content)
+            print(f"  [CACHE] Poster cached: {cache_filename}")
+            return f'/poster/{cache_filename}'
+    except requests.exceptions.Timeout:
+        print(f"  [CACHE] Timeout downloading poster")
+    except requests.exceptions.RequestException as e:
+        print(f"  [CACHE] Error downloading poster: {e}")
+    except Exception as e:
+        print(f"  [CACHE] Unexpected error caching poster: {e}")
+    
+    # Return original URL as fallback
+    return poster_url
+
+
+def get_cached_poster_path(tmdb_id, poster_url):
+    """Get cached poster path or download and cache it"""
+    if not poster_url:
+        return None
+    
+    # Generate cache filename from TMDB ID or URL
+    if tmdb_id:
+        cache_filename = f"tmdb_{tmdb_id}.jpg"
+    else:
+        # Extract filename from URL using hash
+        url_hash = hashlib.md5(poster_url.encode()).hexdigest()
+        cache_filename = f"poster_{url_hash}.jpg"
+    
+    return download_and_cache_poster(poster_url, cache_filename)
+
+
 def load_database():
     """Load previously scanned files from database"""
     global scanned_files, scanned_paths
@@ -150,6 +392,32 @@ def load_database():
         print(f"Error loading database: {e}")
         scanned_files = {}
         scanned_paths = set()
+
+def migrate_poster_urls_to_cache():
+    """Migrate existing TMDB poster URLs to cached versions"""
+    global scanned_files
+    
+    if not TMDB_API_KEY or not REQUESTS_AVAILABLE:
+        return
+    
+    migrated_count = 0
+    with scan_lock:
+        for file_path, file_info in scanned_files.items():
+            poster_url = file_info.get('poster_url')
+            tmdb_id = file_info.get('tmdb_id')
+            
+            # Check if poster URL is a TMDB URL (not cached)
+            if poster_url and is_valid_tmdb_url(poster_url):
+                print(f"  [MIGRATION] Caching poster for: {file_info.get('filename')}")
+                cached_path = get_cached_poster_path(tmdb_id, poster_url)
+                if cached_path and cached_path.startswith('/poster/'):
+                    file_info['poster_url'] = cached_path
+                    migrated_count += 1
+        
+        if migrated_count > 0:
+            save_database()
+            print(f"✓ Migrated {migrated_count} poster(s) to cache")
+
 
 def save_database():
     """Save scanned files to database"""
@@ -699,16 +967,27 @@ def scan_video_file(file_path):
     hdr_info = detect_hdr_format(file_path)
     resolution = get_video_resolution(file_path)
     audio_codec = get_audio_codec(file_path)
+    
+    # Get TMDB poster
+    filename = os.path.basename(file_path)
+    tmdb_id, poster_url = get_tmdb_poster(filename)
+    
+    # Cache the poster if we got a URL
+    cached_poster_path = None
+    if poster_url:
+        cached_poster_path = get_cached_poster_path(tmdb_id, poster_url)
 
     file_info = {
-        'filename': os.path.basename(file_path),
+        'filename': filename,
         'path': file_path,
         'hdr_format': hdr_info.get('format', 'Unknown'),
         'hdr_detail': hdr_info.get('detail', 'Unknown'),
         'profile': hdr_info.get('profile'),
         'el_type': hdr_info.get('el_type'),
         'resolution': resolution,
-        'audio_codec': audio_codec
+        'audio_codec': audio_codec,
+        'tmdb_id': tmdb_id,
+        'poster_url': cached_poster_path if cached_poster_path else poster_url
     }
 
     with scan_lock:
@@ -939,6 +1218,36 @@ def update_assets():
             'error': str(e)
         }), 500
 
+@app.route('/poster/<filename>')
+def serve_poster(filename):
+    """Serve cached poster images"""
+    try:
+        # Validate filename to prevent path traversal attacks
+        # Only allow alphanumeric, underscore, hyphen, and .jpg extension
+        if not re.match(r'^[a-zA-Z0-9_-]+\.jpg$', filename):
+            print(f"Invalid poster filename: {filename}")
+            return "Invalid filename", 400
+        
+        # Prevent directory traversal
+        if '..' in filename or '/' in filename or '\\' in filename:
+            print(f"Path traversal attempt detected: {filename}")
+            return "Invalid filename", 400
+        
+        poster_path = os.path.join(POSTER_CACHE_DIR, filename)
+        
+        # Verify the resolved path is still within POSTER_CACHE_DIR
+        if not os.path.abspath(poster_path).startswith(os.path.abspath(POSTER_CACHE_DIR)):
+            print(f"Path traversal attempt detected: {filename}")
+            return "Invalid filename", 400
+        
+        if os.path.exists(poster_path):
+            return send_file(poster_path, mimetype='image/jpeg')
+        else:
+            return "Poster not found", 404
+    except Exception as e:
+        print(f"Error serving poster {filename}: {e}")
+        return "Error serving poster", 500
+
 def main():
     """Main application entry point"""
     print("=" * 50)
@@ -955,6 +1264,11 @@ def main():
     
     # Load existing database
     load_database()
+    
+    # Migrate existing poster URLs to cached versions
+    if TMDB_API_KEY:
+        print("Migrating poster URLs to cache...")
+        migrate_poster_urls_to_cache()
     
     # Clean up database for non-existent files
     removed_count = cleanup_database()
