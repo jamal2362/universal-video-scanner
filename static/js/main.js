@@ -92,7 +92,7 @@ async function initLanguage() {
 }
 
 // Existing functions (startManualScan, loadFileList, scanSelectedFile) remain unchanged.
-// I extend the script with sorting logic and initialization.
+// The script is extended with sorting logic and initialization.
 
 function startManualScan() {
     const button = document.getElementById('scanButton');
