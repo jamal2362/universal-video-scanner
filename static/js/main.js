@@ -42,6 +42,12 @@ function applyTranslations() {
         if (translations[key]) el.innerHTML = translations[key];
     });
     
+    // Placeholder attributes
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (translations[key]) el.placeholder = translations[key];
+    });
+    
     // Data labels
     document.querySelectorAll('[data-label-i18n]').forEach(el => {
         const key = el.getAttribute('data-label-i18n');
@@ -234,6 +240,17 @@ function scanSelectedFile() {
    Neue Sortier-Logik (client-side)
    ------------------------------- */
 
+// Real-time search function
+function searchMedia() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#mediaTable tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+}
+
 function getProfileRank(hdrFormat, hdrDetail, elType) {
     // Normalisiere Strings
     const f = (hdrFormat || '').toLowerCase();
@@ -363,6 +380,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 localStorage.setItem('dovi_sort_mode', mode);
                 applySort(mode);
             });
+        }
+        
+        // Listener für Suchleiste
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', searchMedia);
         }
     });
 });

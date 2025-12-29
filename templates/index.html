@@ -33,7 +33,22 @@
         </div>
         
         <div class="controls" style="margin-top: 10px;">
-            <!-- Linke Seite:  Datei-Scan -->
+            <!-- Linke Seite: Suchleiste -->
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Suchen..." data-i18n-placeholder="search_placeholder">
+            </div>
+            
+            <!-- Rechte Seite: Sortierung -->
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <select id="sortSelect" data-aria-label-i18n="sort_label" aria-label="Sortierung auswählen">
+                    <option value="filename" data-i18n="sort_by_filename">Nach Dateiname</option>
+                    <option value="profile" data-i18n="sort_by_profile">Nach Medienformat</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="controls" style="margin-top: 10px;">
+            <!-- Datei-Scan -->
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <select id="fileSelect">
                     <option value="" data-i18n="select_file">-- Datei auswählen --</option>
@@ -41,14 +56,6 @@
                 <button id="scanFileButton" class="hidden" onclick="scanSelectedFile()" disabled>
                     ▶️ <span data-i18n="scan_file_button">Datei scannen</span>
                 </button>
-            </div>
-            
-            <!-- Rechte Seite:  Sortierung -->
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <select id="sortSelect" data-aria-label-i18n="sort_label" aria-label="Sortierung auswählen">
-                    <option value="filename" data-i18n="sort_by_filename">Nach Dateiname</option>
-                    <option value="profile" data-i18n="sort_by_profile">Nach Medienformat</option>
-                </select>
             </div>
         </div>
         

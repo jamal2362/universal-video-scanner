@@ -18,5 +18,6 @@
   "no_new_files": "No new files found.",
   "scan_error": "Error while scanning",
   "file_scan_error": "Error while scanning file",
-  "language": "Language"
+  "language": "Language",
+  "search_placeholder": "Search..."
 }
