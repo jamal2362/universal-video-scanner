@@ -79,6 +79,32 @@ os.makedirs(CSS_DIR, exist_ok=True)
 os.makedirs(JS_DIR, exist_ok=True)
 os.makedirs(POSTER_CACHE_DIR, exist_ok=True)
 
+def copy_bundled_static_files():
+    """Copy bundled static files from image to data directory if missing"""
+    # Bundled files location (copied during Docker build)
+    bundled_files = {
+        '/app/templates/index.html': os.path.join(TEMPLATES_DIR, 'index.html'),
+        '/app/static/css/style.css': os.path.join(CSS_DIR, 'style.css'),
+        '/app/static/js/main.js': os.path.join(JS_DIR, 'main.js'),
+    }
+    
+    copied_count = 0
+    for bundled_path, target_path in bundled_files.items():
+        # Only copy if source exists and target doesn't exist
+        if os.path.exists(bundled_path) and not os.path.exists(target_path):
+            try:
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                shutil.copy2(bundled_path, target_path)
+                print(f"  ✓ Copied bundled file: {os.path.basename(bundled_path)}")
+                copied_count += 1
+            except Exception as e:
+                print(f"  ✗ Error copying bundled file {bundled_path}: {e}")
+    
+    if copied_count > 0:
+        print(f"✓ Copied {copied_count} bundled static file(s)")
+    
+    return copied_count
+
 def download_static_files():
     """Download missing static files from GitHub"""
     missing_files = []
@@ -1256,6 +1282,9 @@ def main():
     
     # Check and download static files if needed
     print("Checking static files...")
+    # First, try to copy bundled static files from image
+    copy_bundled_static_files()
+    # Then, download from GitHub if still missing
     if not download_static_files():
         print("Warning: Failed to download some static files")
     

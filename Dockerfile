@@ -29,6 +29,8 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY app.py .
+COPY templates/ templates/
+COPY static/ static/
 
 # Create media directory
 RUN mkdir -p /media
