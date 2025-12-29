@@ -111,17 +111,6 @@ h1 {
     color: #e0e0e0;
 }
 
-.loading {
-    display: none;
-    align-items: center;
-    gap: 10px;
-    color: #4ecca3;
-}
-
-.loading.active {
-    display: flex;
-}
-
 .spinner {
     width: 20px;
     height: 20px;
@@ -446,9 +435,9 @@ tbody tr:hover {
     box-shadow: none;
 }
 
-/* Spezielles Styling für die Loading-Anzeige (sichtbar neben Buttons) */
+/* Spezielles Styling für die Loading-Anzeige (standardmäßig versteckt) */
 .loading {
-    display: inline-flex;
+    display: none;  /* WICHTIG: versteckt wenn nicht aktiv */
     align-items: center;
     gap: 10px;
     background-color: transparent;
@@ -457,8 +446,9 @@ tbody tr:hover {
     border-radius: 10px;
 }
 
-/* Wenn loading als box/Badge genutzt wird, soll es konsistent aussehen */
+/* Wenn loading aktiv ist, soll es sichtbar sein */
 .loading.active {
+    display:  inline-flex;  /* Nur sichtbar wenn . active */
     background-color: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.03);
     box-shadow: 0 4px 10px rgba(2,6,23,0.35);
