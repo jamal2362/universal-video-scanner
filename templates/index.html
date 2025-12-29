@@ -78,6 +78,12 @@
                         {% endif %}
                     </td>
                     <td data-label="HDR Format">
+                        {# Wenn Dolby Vision und el_type vorhanden -> ein kombiniertes Badge #}
+                        {% if file.hdr_format == 'Dolby Vision' and file.el_type %}
+                        <span class="hdr-badge hdr-dolby-vision el-{{ file.el_type.lower() }}">
+                            {{ file.hdr_detail }} {{ file.el_type }}
+                        </span>
+                        {% else %}
                         <span class="hdr-badge hdr-{{ file.hdr_format.lower().replace(' ', '-').replace('+', 'plus') }}">
                             {{ file.hdr_detail }}
                         </span>
@@ -85,6 +91,7 @@
                         <span class="el-badge el-{{ file.el_type.lower() }}">
                             {{ file.el_type }}
                         </span>
+                        {% endif %}
                         {% endif %}
                     </td>
                     <td data-label="Auflösung" class="resolution">{{ file.resolution }}</td>
