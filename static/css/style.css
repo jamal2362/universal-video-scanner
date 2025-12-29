@@ -65,21 +65,27 @@ h1 {
 }
 
 #scanButton, #scanFileButton {
-    background: linear-gradient(135deg, #4ecca3 0%, #3da88a 100%);
-    color: #1e1e2e;
-    border: none;
-    padding: 12px 30px;
-    font-size: 1em;
-    font-weight: bold;
-    border-radius: 25px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: #1f2937; /* dunkel (gleiche Basisfarbe wie Selects) */
+    color: #e6eef6;
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 16px;
+    font-size: 0.95rem;
+    border-radius: 10px;
+    transition: all 160ms ease;
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 6px rgba(78, 204, 163, 0.3);
+    min-height: 40px;
+    line-height: 1;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
 
 #scanButton:hover:not(:disabled), #scanFileButton:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(78, 204, 163, 0.4);
 }
 
 #scanButton:disabled, #scanFileButton:disabled {
@@ -366,6 +372,115 @@ tbody tr:hover {
     box-shadow: none;
 }
 
+/* -----------------------------
+   Einheitliches Button‑Styling (gleicher Look wie Dropdowns)
+   ----------------------------- */
+
+#scanButton,
+#scanFileButton,
+.button-group button {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: #1f2937; /* dunkel (gleiche Basisfarbe wie Selects) */
+    color: #e6eef6;
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 16px;
+    font-size: 0.95rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(2,6,23,0.45);
+    transition: all 160ms ease;
+    cursor: pointer;
+    min-height: 40px;
+    line-height: 1;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Optional: kleine Icons oder Emojis innerhalb Buttons skalieren */
+#scanButton img,
+#scanFileButton img,
+.button-group button img {
+    height: 18px;
+    width: auto;
+    display: inline-block;
+}
+
+/* Hover / Fokus Effekte (Match Select) */
+#scanButton:hover,
+#scanFileButton:hover,
+.button-group button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(2,6,23,0.55);
+}
+
+#scanButton:focus,
+#scanFileButton:focus,
+.button-group button:focus {
+    outline: none;
+    border-color: rgba(99,102,241,0.9); /* violett Akzent */
+    box-shadow: 0 0 0 4px rgba(99,102,241,0.08);
+}
+
+/* Disabled Zustand */
+#scanButton:disabled,
+#scanFileButton:disabled,
+.button-group button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Spezielles Styling für die Loading-Anzeige (sichtbar neben Buttons) */
+.loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background-color: transparent;
+    color: #cbd5e1;
+    padding: 6px 10px;
+    border-radius: 10px;
+}
+
+/* Wenn loading als box/Badge genutzt wird, soll es konsistent aussehen */
+.loading.active {
+    background-color: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.03);
+    box-shadow: 0 4px 10px rgba(2,6,23,0.35);
+}
+
+/* Spinner: kleiner und kontrastreich */
+.loading .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(230,238,246,0.12);
+    border-top-color: #e6eef6;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+}
+
+/* Animation */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive Anpassungen */
+@media screen and (max-width: 640px) {
+    #scanButton,
+    #scanFileButton,
+    .button-group button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .controls {
+        gap: 10px;
+    }
+}
+
 /* Kleinere Bildschirme: responsive Breiten */
 @media screen and (max-width: 640px) {
     #fileSelect {
@@ -534,7 +649,7 @@ tbody tr:hover {
     
     /* Smaller posters in landscape mode */
     .poster-img {
-        max-height: 80px;
+        max-height: 150px;
     }
     
     .hdr-badge, .el-badge {
