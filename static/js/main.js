@@ -387,6 +387,51 @@ function getAudioCodecFromRow(row) {
     return audioCell.textContent.trim();
 }
 
+function getAudioRank(audioCodec) {
+    // Normalize audio codec string
+    const audio = (audioCodec || '').toLowerCase();
+    
+    // Priority ranking based on audio quality/format
+    // 0: Dolby TrueHD (Atmos)
+    if (audio.includes('truehd') && audio.includes('atmos')) {
+        return 0;
+    }
+    // 1: DTS:X
+    if (audio.includes('dts:x') || audio.includes('dts-x') || audio.includes('dtsx')) {
+        return 1;
+    }
+    // 2: Dolby TrueHD
+    if (audio.includes('truehd')) {
+        return 2;
+    }
+    // 3: DTS-HD MA
+    if (audio.includes('dts-hd ma') || audio.includes('dts-hd master audio')) {
+        return 3;
+    }
+    // 4: DTS-HD HRA
+    if (audio.includes('dts-hd hra') || audio.includes('dts-hd high resolution')) {
+        return 4;
+    }
+    // 5: Dolby Digital Plus (Atmos)
+    if (audio.includes('digital plus') && audio.includes('atmos')) {
+        return 5;
+    }
+    // 6: Dolby Digital Plus
+    if (audio.includes('digital plus')) {
+        return 6;
+    }
+    // 7: DTS (but not DTS-HD or DTS:X)
+    if (audio.includes('dts') && !audio.includes('dts-hd') && !audio.includes('dts:x') && !audio.includes('dts-x')) {
+        return 7;
+    }
+    // 8: Dolby Digital (but not Plus)
+    if ((audio.includes('dolby digital') || audio.includes('ac-3')) && !audio.includes('plus')) {
+        return 8;
+    }
+    // 9+: Other formats (AAC, FLAC, MP3, PCM, etc.)
+    return 9;
+}
+
 function sortTableByAudio() {
     const table = document.getElementById('mediaTable');
     if (!table) return;
@@ -394,11 +439,19 @@ function sortTableByAudio() {
     const rows = Array.from(tbody.querySelectorAll('tr'));
 
     rows.sort((a, b) => {
-        const aAudio = getAudioCodecFromRow(a).toLowerCase();
-        const bAudio = getAudioCodecFromRow(b).toLowerCase();
+        const aAudio = getAudioCodecFromRow(a);
+        const bAudio = getAudioCodecFromRow(b);
         
-        if (aAudio < bAudio) return -1;
-        if (aAudio > bAudio) return 1;
+        const aRank = getAudioRank(aAudio);
+        const bRank = getAudioRank(bAudio);
+        
+        if (aRank !== bRank) return aRank - bRank;
+        
+        // If same rank, sort alphabetically by codec name
+        const aLower = aAudio.toLowerCase();
+        const bLower = bAudio.toLowerCase();
+        if (aLower < bLower) return -1;
+        if (aLower > bLower) return 1;
         
         // If same audio codec, sort secondarily by filename
         const aName = getFilenameFromRow(a).toLowerCase();
