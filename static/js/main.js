@@ -421,7 +421,7 @@ function getAudioRank(audioCodec) {
         return 6;
     }
     // 7: DTS (but not DTS-HD or DTS:X)
-    if (audio.includes('dts') && !audio.includes('dts-hd') && !audio.includes('dts:x') && !audio.includes('dts-x')) {
+    if (audio.includes('dts') && !audio.includes('dts-hd') && !audio.includes('dts:x') && !audio.includes('dts-x') && !audio.includes('dtsx')) {
         return 7;
     }
     // 8: Dolby Digital (but not Plus)
