@@ -752,12 +752,16 @@ tbody tr:hover {
     }
     td[data-label="HDR Format"]:before,
     td[data-label="Auflösung"]:before,
-    td[data-label="Audiocodec"]:before {
+    td[data-label="Resolution"]:before,
+    td[data-label="Audiocodec"]:before,
+    td[data-label="Audio codec"]:before {
         display: none;
     }
     td[data-label="HDR Format"],
     td[data-label="Auflösung"],
-    td[data-label="Audiocodec"] {
+    td[data-label="Resolution"],
+    td[data-label="Audiocodec"],
+    td[data-label="Audio codec"] {
         text-align: center;
         padding-left: 0;
     }
