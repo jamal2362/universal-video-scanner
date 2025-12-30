@@ -327,12 +327,15 @@ function updateProfileStats() {
         } else if (elType === 'MEL') {
             stats.MEL++;
         } 
-        // Check for HDR10+
-        else if (hdrFormat.includes('hdr10+') || hdrDetail.includes('hdr10+')) {
+        // Check for HDR10+ (must check before HDR10 to avoid false matches)
+        else if (hdrFormat.includes('hdr10+') || hdrDetail.includes('hdr10+') || 
+                 hdrFormat.includes('hdr10plus') || hdrDetail.includes('hdr10plus')) {
             stats['HDR10+']++;
         }
-        // Check for HDR10 (but not HDR10+)
-        else if (hdrFormat.includes('hdr10') || hdrDetail.includes('hdr10') || hdrFormat.includes('smpte2084')) {
+        // Check for HDR10 (but not HDR10+) - explicitly exclude HDR10+
+        else if ((hdrFormat.includes('hdr10') || hdrDetail.includes('hdr10') || hdrFormat.includes('smpte2084')) &&
+                 !hdrFormat.includes('hdr10+') && !hdrDetail.includes('hdr10+') &&
+                 !hdrFormat.includes('hdr10plus') && !hdrDetail.includes('hdr10plus')) {
             stats['HDR10']++;
         }
         // Check for HLG
