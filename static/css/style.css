@@ -214,7 +214,7 @@ tbody tr:hover {
     display: inline-block;
     text-align: center;
     width: 175px;
-    padding: 5px 12px;
+    padding: 10px;
     border-radius: 15px;
     font-weight: bold;
     font-size: 0.9em;
@@ -264,11 +264,10 @@ tbody tr:hover {
     display: inline-block;
     text-align: center;
     width: 175px;
-    padding: 5px 12px;
+    padding: 10px;
     border-radius: 15px;
     font-weight: bold;
     font-size: 0.9em;
-    margin-left: 5px;
 }
 
 .el-mel {
@@ -285,7 +284,7 @@ tbody tr:hover {
     display: inline-block;
     text-align: center;
     width: 175px;
-    padding: 5px 12px;
+    padding: 10px;
     border-radius: 15px;
     font-weight: bold;
     font-size: 0.9em;
@@ -340,7 +339,7 @@ tbody tr:hover {
     display: inline-block;
     text-align: center;
     width: 175px;
-    padding: 5px 12px;
+    padding: 10px;
     border-radius: 15px;
     font-weight: bold;
     font-size: 0.9em;
@@ -830,10 +829,12 @@ tbody tr:hover {
         max-width: 100%;
         width: auto;
     }
-    .resolution-badge, .audio-badge {
-        font-size: 0.8em;
-        padding: 4px 8px;
-    }
+    .hdr-badge,
+    .el-badge,
+    .resolution-badge,
+    .audio-badge {
+    	width: 90%;
+	}
 }
 
 @media screen and (max-height: 768px) and (orientation: landscape) {
@@ -862,24 +863,10 @@ tbody tr:hover {
     .poster-img {
         max-height: 150px;
     }
-    .hdr-badge, .el-badge {
-        font-size: 0.8em;
-        padding: 4px 8px;
-    }
-    .resolution-badge, .audio-badge {
-        font-size: 0.8em;
-        padding: 4px 8px;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .poster-img {
-        transition: none;
-    }
-    .poster-img:hover {
-        transform: none;
-    }
-    .spinner {
-        animation: none;
-    }
+    .hdr-badge,
+    .el-badge,
+    .resolution-badge,
+    .audio-badge {
+    	width: 90%;
+	}
 }
