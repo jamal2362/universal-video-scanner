@@ -47,8 +47,7 @@ h1 {
     transition: all 160ms ease;
     cursor: pointer;
     min-height: 40px;
-    line-height: 1;
-    font-weight: 600;
+    font-weight: bold;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -94,16 +93,26 @@ h1 {
 
 .controls {
     display: flex;
-	margin-top: 15px;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-top: 15px;
+    margin-bottom: 15px;
     padding: 15px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 10px;
 }
 
-.left-group, .right-group {
+.top-group,
+.bottom-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.left-group,
+.right-group {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -180,7 +189,6 @@ table {
 }
 
 thead {
-    background: #181825;
     color: #e6eef6;
 }
 
@@ -194,7 +202,8 @@ th {
 }
 
 td {
-    padding: 15px;
+    padding-top: 20px;
+    padding-bottom: 25px;
     border-top: 2px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -402,14 +411,14 @@ tbody tr:hover {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 20px;
     min-width: 0;
 }
 
 .poster-title {
     display: inline-block;
-    font-size: 0.9em;
-    font-weight: 600;
+    font-size: 1em;
+    font-weight: bold;
     color: white;
     text-align: center;
     max-width: 250px;
@@ -455,14 +464,16 @@ tbody tr:hover {
     background-color: #1f2937;
     color: #e6eef6;
     border: 1px solid rgba(255,255,255,0.06);
-    padding: 10px 40px 10px 16px;
     font-size: 0.95rem;
+    padding-left: 40px;
+    padding-right: 40px;
     border-radius: 10px;
     box-shadow: 0 4px 14px rgba(2,6,23,0.45);
     transition: all 160ms ease;
     min-height: 40px;
     width: 300px;
     line-height: 1;
+    text-align: center;
 }
 
 #searchInput:hover {
@@ -519,16 +530,15 @@ tbody tr:hover {
     transition: all 160ms ease;
     cursor: pointer;
     min-height: 40px;
-    line-height: 1;
     text-align: center;
 }
 
 .controls select#fileSelect {
-    width: 220px;
+    width: 300px;
 }
 
 .controls select#sortSelect {
-    width: 220px;
+    width: 300px;
 }
 
 #fileSelect:hover,
@@ -553,6 +563,24 @@ tbody tr:hover {
 }
 
 #scanButton,
+.button-group button {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: #1f2937;
+    color: #e6eef6;
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 16px;
+    font-size: 0.95rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(2,6,23,0.45);
+    transition: all 160ms ease;
+    cursor: pointer;
+    min-height: 40px;
+    align-items: center;
+    width: 300px;
+}
+
 #scanFileButton,
 .button-group button {
     -webkit-appearance: none;
@@ -568,12 +596,8 @@ tbody tr:hover {
     transition: all 160ms ease;
     cursor: pointer;
     min-height: 40px;
-    line-height: 1;
-    font-weight: 600;
-    display: inline-flex;
     align-items: center;
-    gap: 8px;
-	width: 220px;
+	width: 70px;
 }
 
 #scanButton img,
@@ -638,46 +662,176 @@ tbody tr:hover {
     to { transform: rotate(360deg); }
 }
 
-@media (max-width: 600px) {
-    .controls {
-        flex-direction: column;
-        align-items: stretch;
+@media screen and (max-width: 768px) {
+    body {
+        padding: 10px;
     }
-    .left-group, .right-group {
+
+    h1 {
+        font-size: 1.8em;
+    }
+
+    .controls {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 10px;
+        margin-top: 0;
+    }
+
+    .top-group,
+    .bottom-group {
         flex-direction: column;
         align-items: stretch;
         gap: 10px;
     }
-    .search-container input,
-    .button-group button,
-    .right-group select {
-        width: 100%;
-    }
-}
 
-@media screen and (max-width: 640px) {
-    #fileSelect {
+    .left-group,
+    .right-group {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .left-group > *,
+    .right-group > * {
         width: 100%;
     }
-    #sortSelect {
-        width: 140px;
-    }
-    #searchInput {
+
+    .stats {
         width: 100%;
+        text-align: center;
     }
-    .search-container {
+
+    .button-group {
         width: 100%;
+        display: flex;
+        flex-direction: column;
     }
+
+    .controls select#fileSelect,
+    .controls select#sortSelect {
+        width: 100%;
+        max-width: 100%;
+    }
+
     #scanButton,
     #scanFileButton,
     .button-group button {
         width: 100%;
         justify-content: center;
     }
-    .controls {
-        gap: 10px;
-        margin-top: 0px;
+
+    #scanFileButton.hidden {
+        display: none !important;
     }
+
+    thead {
+        display: none;
+    }
+
+    table {
+        border: none;
+        background: transparent;
+    }
+
+    tbody {
+        display: block;
+        margin-top: 5px;
+    }
+
+    tr {
+        display: block;
+        margin-bottom: 15px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 10px;
+        padding: 15px;
+    }
+
+    tr:hover {
+        background: rgba(7, 7, 11, 0.5);
+    }
+
+    td {
+        display: block;
+        text-align: left;
+        padding: 10px 0;
+        border: none;
+        position: relative;
+        padding-left: 50%;
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+
+    td:before {
+        content: attr(data-label);
+        position: absolute;
+        left: 0;
+        width: 45%;
+        padding-right: 10px;
+        font-weight: bold;
+        color: #e6eef6;
+        text-transform: uppercase;
+        font-size: 0.85em;
+    }
+
+    td[data-label-i18n="table_header_hdr"]:before,
+    td[data-label-i18n="table_header_resolution"]:before,
+    td[data-label-i18n="table_header_audio"]:before {
+        display: none;
+    }
+
+    td[data-label-i18n="table_header_hdr"],
+    td[data-label-i18n="table_header_resolution"],
+    td[data-label-i18n="table_header_audio"] {
+        text-align: center;
+        padding-left: 0;
+    }
+
+    td:first-child {
+        padding-top: 0;
+        padding-left: 0;
+        text-align: center;
+    }
+
+    td:first-child:before {
+        display: none;
+    }
+
+    td:last-child {
+        padding-bottom: 20px;
+    }
+
+    .poster-container {
+        width: 100%;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .poster-title {
+        max-width: 100%;
+        font-size: 1.1em;
+    }
+
+    .poster-img {
+        max-height: 200px;
+        max-width: 100%;
+        width: auto;
+    }
+
+    .hdr-badge,
+    .el-badge,
+    .resolution-badge,
+    .audio-badge {
+        width: 90%;
+    }
+
+    #searchInput,
+    .search-container {
+        width: 100%;
+    }
+
     .language-switcher {
         width: 100%;
         display: flex;
@@ -690,152 +844,37 @@ tbody tr:hover {
     }
 }
 
-@media screen and (max-width: 768px) {
-    body {
-        padding: 10px;
-    }
-    h1 {
-        font-size: 1.8em;
-    }
-    .controls {
-        flex-direction: column;
-        width: 100%;
-    }
-    .stats {
-        width: 100%;
-        text-align: center;
-    }
-    .button-group {
-        width: 100%;
-        flex-direction: column;
-    }
-    .controls select#fileSelect,
-    .controls select#sortSelect {
-        width: 100% !important;
-        max-width: 100%;
-    }
-    #scanButton,
-	#fileSelect,
-    #scanFileButton,
-    .button-group button {
-        width: 100%;
-    }
-	#scanFileButton.hidden {
-		display: none !important;
-	}
-    thead {
-        display: none;
-    }
-    table {
-        border: none;
-        background: transparent;
-    }
-    tbody {
-        display: block;
-        margin-top: 5px;
-    }
-    tr {
-        display: block;
-        margin-bottom: 15px;
-        background: rgba(0, 0, 0, 0.3);
-        border-radius: 10px;
-        padding: 15px;
-    }
-    tr:hover {
-        background: rgba(7, 7, 11, 0.5);
-    }
-    td {
-        display: block;
-        text-align: left;
-        padding: 10px 0;
-        border: none;
-        position: relative;
-        padding-left: 50%;
-        word-break: break-word;
-        overflow-wrap: break-word;
-    }
-    td:before {
-        content: attr(data-label);
-        position: absolute;
-        left: 0;
-        width: 45%;
-        padding-right: 10px;
-        font-weight: bold;
-        color: #e6eef6;
-        text-transform: uppercase;
-        font-size: 0.85em;
-    }
-    td[data-label-i18n="table_header_hdr"]:before,
-    td[data-label-i18n="table_header_resolution"]:before,
-    td[data-label-i18n="table_header_audio"]:before {
-        display: none;
-    }
-    td[data-label-i18n="table_header_hdr"],
-    td[data-label-i18n="table_header_resolution"],
-    td[data-label-i18n="table_header_audio"] {
-        text-align: center;
-        padding-left: 0;
-    }
-    td:first-child {
-        padding-top: 0;
-        padding-left: 0;
-        text-align: center;
-    }
-    td:first-child:before {
-        display: none;
-    }
-    td:last-child {
-        padding-bottom: 0;
-    }
-    .poster-container {
-        width: 100%;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 15px;
-    }
-    .poster-title {
-        max-width: 100%;
-        font-size: 1em;
-    }
-    .poster-img {
-        max-height: 200px;
-        max-width: 100%;
-        width: auto;
-    }
-    .hdr-badge,
-    .el-badge,
-    .resolution-badge,
-    .audio-badge {
-    	width: 90%;
-	}
-}
-
 @media screen and (max-height: 768px) and (orientation: landscape) {
     body {
         padding: 5px;
     }
+
     h1 {
         font-size: 1.5em;
     }
+
     .subtitle {
         font-size: 0.9em;
     }
+
     header {
         padding: 10px;
         margin-bottom: 15px;
     }
+
     .controls {
         padding: 10px;
+		align-items: center;
     }
+
     table {
         font-size: 0.9em;
     }
-    th, td {
-        padding: 8px;
-    }
+
     .poster-img {
         max-height: 150px;
     }
+
     .hdr-badge,
     .el-badge,
     .resolution-badge,

@@ -13,36 +13,42 @@
         </header>
 
         <div class="controls">
-            <div class="left-group">
-                <div class="search-container">
-                    <input type="text" id="searchInput" data-i18n-placeholder="search_placeholder">
-                    <button id="clearSearch" class="clear-btn" onclick="clearSearch()" style="display: none;">✕</button>
+            <div class="top-group">
+                <div class="left-group">
+                    <select id="fileSelect">
+                        <option value="" data-i18n="select_file"></option>
+                    </select>
+                    <button id="scanFileButton" class="hidden" onclick="scanSelectedFile()" disabled>
+                        <span data-i18n="scan_file_button"></span>
+                    </button>
                 </div>
-
-                <button id="scanButton" onclick="startManualScan()">
-                    <span id="scanButtonText" data-i18n="scan_all_button"></span>
-                </button>
-
-                <div id="loadingIndicator" class="loading">
-                    <div class="spinner"></div>
-                    <span data-i18n="scanning"></span>
+                <div class="right-group">
+                    <button id="scanButton" onclick="startManualScan()">
+                        <span id="scanButtonText" data-i18n="scan_all_button"></span>
+                    </button>
+                    <div id="loadingIndicator" class="loading">
+                        <div class="spinner"></div>
+                        <span data-i18n="scanning"></span>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <div class="right-group">
-                <button id="scanFileButton" class="hidden" onclick="scanSelectedFile()" disabled>
-                    <span data-i18n="scan_file_button"></span>
-                </button>
-
-                <select id="fileSelect">
-                    <option value="" data-i18n="select_file"></option>
-                </select>
-
-                <select id="sortSelect" data-aria-label-i18n="sort_label">
-                    <option value="filename" data-i18n="sort_by_filename"></option>
-                    <option value="profile" data-i18n="sort_by_profile"></option>
-                    <option value="audio" data-i18n="sort_by_audio"></option>
-                </select>
+        <div class="controls">
+            <div class="bottom-group">
+                <div class="left-group">
+                    <select id="sortSelect" data-aria-label-i18n="sort_label">
+                        <option value="filename" data-i18n="sort_by_filename"></option>
+                        <option value="profile" data-i18n="sort_by_profile"></option>
+                        <option value="audio" data-i18n="sort_by_audio"></option>
+                    </select>
+                </div>
+                <div class="right-group">
+                    <div class="search-container">
+                        <input type="text" id="searchInput" data-i18n-placeholder="search_placeholder">
+                        <button id="clearSearch" class="clear-btn" onclick="clearSearch()" style="display: none;">✕</button>
+                    </div>
+                </div>
             </div>
         </div>
 

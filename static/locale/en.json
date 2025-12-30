@@ -2,9 +2,9 @@
   "title": "🎟️ DoVi Detector",
   "media_count": "files",
   "scanning": "Scanning...",
-  "scan_all_button": "🔍 Scan all media",
+  "scan_all_button": "🚀 Scan all media",
   "select_file": "🗃️ Select file",
-  "scan_file_button": "🟢 Scan file",
+  "scan_file_button": "✅",
   "sort_by_filename": "📁 By filename",
   "sort_by_profile": "🎞️ By HDR format",
   "sort_by_audio": "🔊 By audio track",
@@ -19,6 +19,6 @@
   "no_new_files": "No new files found.",
   "scan_error": "Error while scanning",
   "file_scan_error": "Error while scanning file",
-  "search_placeholder": "Search...",
+  "search_placeholder": "🔍 Search...",
   "unknown": "Unknown"
 }
