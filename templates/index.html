@@ -80,7 +80,7 @@
                     <td data-label-i18n="table_header_hdr">
                         {% if file.hdr_format == 'Dolby Vision' and file.el_type %}
                         <span class="hdr-badge hdr-dolby-vision el-{{ file.el_type.lower() }}">
-                            {{ file.hdr_detail }} {{ file.el_type }}
+                            {{ file.hdr_detail }} ({{ file.el_type }})
                         </span>
                         {% else %}
                         <span class="hdr-badge hdr-{{ file.hdr_format.lower().replace(' ', '-').replace('+', 'plus') }}">
