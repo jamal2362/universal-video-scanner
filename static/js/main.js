@@ -571,6 +571,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update profile statistics on initial load
         updateProfileStats();
+        
+        // Update clear button state on initial load
+        updateClearButton();
 
         // Listener for sort selection
         const sortSelect = document.getElementById('sortSelect');
