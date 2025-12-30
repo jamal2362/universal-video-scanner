@@ -20,7 +20,7 @@ body {
 
 header {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     padding: 20px 20px 10px 10px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 10px;
@@ -94,9 +94,10 @@ h1 {
 
 .controls {
     display: flex;
+	margin-top: 15px;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     padding: 15px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 10px;
@@ -195,6 +196,10 @@ th {
 td {
     padding: 15px;
     border-top: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+tbody {
+    margin-top: 5px;
 }
 
 tbody tr {
@@ -679,18 +684,6 @@ tbody tr:hover {
 }
 
 @media screen and (max-width: 640px) {
-    #scanButton,
-    #scanFileButton,
-    .button-group button {
-        width: 100%;
-        justify-content: center;
-    }
-    .controls {
-        gap: 10px;
-    }
-}
-
-@media screen and (max-width: 640px) {
     #fileSelect {
         width: 100%;
     }
@@ -702,6 +695,26 @@ tbody tr:hover {
     }
     .search-container {
         width: 100%;
+    }
+    #scanButton,
+    #scanFileButton,
+    .button-group button {
+        width: 100%;
+        justify-content: center;
+    }
+    .controls {
+        gap: 10px;
+        margin-top: 0px;
+    }
+    .language-switcher {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        margin-top: 10px; /* optional, Abstand nach oben */
+    }
+
+    .language-switcher select#languageDropdown {
+        width: auto; /* oder max-width: 200px; wenn es nicht zu groß sein soll */
     }
 }
 
@@ -747,6 +760,7 @@ tbody tr:hover {
     }
     tbody {
         display: block;
+        margin-top: 5px;
     }
     tr {
         display: block;
