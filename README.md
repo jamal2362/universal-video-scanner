@@ -125,6 +125,63 @@ DoVi-Detector/
 | `TMDB_API_KEY` | `` | TMDB API key for fetching movie posters (optional) |
 | `FANART_API_KEY` | `` | Fanart.tv API key for fetching thumb posters (optional) |
 | `IMAGE_SOURCE` | `tmdb` | Image source selection: `tmdb` (default) or `fanart` |
+| `CONTENT_LANGUAGE` | `en` | Preferred content language (ISO 639-1 code) for TMDB/Fanart.tv content and audio track selection |
+
+### Content Language Configuration
+
+The `CONTENT_LANGUAGE` environment variable controls:
+1. **TMDB/Fanart.tv Content**: Language for movie titles, descriptions, and posters
+2. **Audio Track Selection**: Preferred audio track language
+
+**Supported Language Codes** (ISO 639-1):
+- `en` - English (default)
+- `de` - German
+- `ru` - Russian
+- `bg` - Bulgarian
+- `fr` - French
+- `es` - Spanish
+- `it` - Italian
+- `pt` - Portuguese
+- `ja` - Japanese
+- `ko` - Korean
+- `zh` - Chinese
+- `nl` - Dutch
+- `pl` - Polish
+- `sv` - Swedish
+- `no` - Norwegian
+- `da` - Danish
+- `fi` - Finnish
+- `tr` - Turkish
+- `ar` - Arabic
+- `he` - Hebrew
+- `hi` - Hindi
+- `th` - Thai
+- `cs` - Czech
+- `hu` - Hungarian
+- `ro` - Romanian
+- `el` - Greek
+- `uk` - Ukrainian
+
+**Fallback Behavior**:
+- TMDB queries: If content is not available in the configured language, it falls back to English (`en`)
+- Audio tracks: Prefers configured language → English (`eng`) → first available track
+
+**Example Configuration**:
+
+```yaml
+environment:
+  - CONTENT_LANGUAGE=ru  # Russian for TMDB content + preferred audio track
+```
+
+```yaml
+environment:
+  - CONTENT_LANGUAGE=de  # German
+```
+
+```yaml
+environment:
+  - CONTENT_LANGUAGE=bg  # Bulgarian
+```
 
 ### TMDB API Integration (Optional)
 

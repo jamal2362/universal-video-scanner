@@ -17,3 +17,4 @@ services:
       - TMDB_API_KEY=${TMDB_API_KEY:-}  # Add your TMDB API key here or set via .env file
       - FANART_API_KEY=${FANART_API_KEY:-}  # Add your Fanart.tv API key here or set via .env file
       - IMAGE_SOURCE=${IMAGE_SOURCE:-tmdb}  # Image source: 'tmdb' (default) or 'fanart'
+      - CONTENT_LANGUAGE=${CONTENT_LANGUAGE:-en}  # Preferred content language: ISO 639-1 code (default: en)
