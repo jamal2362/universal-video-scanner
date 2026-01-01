@@ -457,12 +457,8 @@ def get_fanart_poster_by_id(tmdb_id, media_type='movie'):
     if not FANART_API_KEY or not REQUESTS_AVAILABLE:
         return None
 
-    # Validate tmdb_id
-    if not tmdb_id:
-        print(f"Invalid TMDB ID for Fanart.tv: {tmdb_id}")
-        return None
-    
-    if not isinstance(tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
+    # Validate tmdb_id is a valid numeric string or integer
+    if not tmdb_id or not isinstance(tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
         print(f"Invalid TMDB ID for Fanart.tv: {tmdb_id}")
         return None
 
@@ -573,13 +569,17 @@ def get_cached_backdrop_path(tmdb_id, poster_url):
     if not poster_url:
         return None
 
-    # Generate cache filename from TMDB ID or URL
+    # Generate cache filename based on source and TMDB ID or URL hash
     if tmdb_id:
-        # Determine source from URL
+        # Determine source from URL validation
         if is_valid_fanart_url(poster_url):
             cache_filename = f"fanart_{tmdb_id}.jpg"
-        else:
+        elif is_valid_tmdb_url(poster_url):
             cache_filename = f"tmdb_{tmdb_id}.jpg"
+        else:
+            # Fallback to hash-based naming for unknown sources
+            url_hash = hashlib.md5(poster_url.encode()).hexdigest()
+            cache_filename = f"poster_{url_hash}.jpg"
     else:
         # Extract filename from URL using hash
         url_hash = hashlib.md5(poster_url.encode()).hexdigest()
@@ -1596,10 +1596,22 @@ def main():
     # Migrate existing poster URLs to cached versions
     if REQUESTS_AVAILABLE:
         print(f"Image source: {IMAGE_SOURCE.upper()}")
-        if IMAGE_SOURCE == 'fanart' and FANART_API_KEY:
-            print("Fanart.tv API key configured")
-        elif IMAGE_SOURCE == 'tmdb' and TMDB_API_KEY:
-            print("TMDB API key configured")
+        if IMAGE_SOURCE == 'fanart':
+            if FANART_API_KEY:
+                print("✓ Fanart.tv API key configured")
+            else:
+                print("⚠ Warning: Fanart.tv selected but FANART_API_KEY not configured - no posters will be fetched")
+        elif IMAGE_SOURCE == 'tmdb':
+            if TMDB_API_KEY:
+                print("✓ TMDB API key configured")
+            else:
+                print("⚠ Warning: TMDB selected but TMDB_API_KEY not configured - no posters will be fetched")
+        else:
+            print(f"⚠ Warning: Unknown IMAGE_SOURCE '{IMAGE_SOURCE}' - defaulting to TMDB")
+            if TMDB_API_KEY:
+                print("✓ TMDB API key configured")
+            else:
+                print("⚠ Warning: TMDB_API_KEY not configured - no posters will be fetched")
         print("Migrating poster URLs to cache...")
         migrate_poster_urls_to_cache()
 
