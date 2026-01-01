@@ -485,8 +485,6 @@ def get_tmdb_poster(filename):
         poster_url, title, year, rating = search_tmdb_poster(movie_name, 'tv')
         if poster_url:
             print(f"  [TMDB] Poster found by search (TV): {poster_url}")
-        if poster_url:
-            print(f"  [TMDB] Poster found by search (TV): {poster_url}")
             return None, poster_url, title, year, rating
 
     print(f"  [TMDB] No poster found for: {filename}")
