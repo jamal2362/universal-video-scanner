@@ -585,11 +585,6 @@ tbody tr:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.dialog-link.imdb {
-    background: linear-gradient(135deg, #f5c518 0%, #e6b800 100%);
-    color: #000;
-}
-
 .dialog-link.tmdb {
     background: linear-gradient(135deg, #01b4e4 0%, #0190b8 100%);
 }

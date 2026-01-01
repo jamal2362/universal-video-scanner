@@ -661,7 +661,6 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, tmdb
     const dialogDuration = document.getElementById('dialogDuration');
     const dialogVideoBitrate = document.getElementById('dialogVideoBitrate');
     const dialogAudioBitrate = document.getElementById('dialogAudioBitrate');
-    const dialogImdbLink = document.getElementById('dialogImdbLink');
     const dialogTmdbLink = document.getElementById('dialogTmdbLink');
     
     // Set title with year if available
@@ -693,15 +692,9 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, tmdb
         // TMDb link - direct to movie page
         dialogTmdbLink.href = `https://www.themoviedb.org/movie/${tmdbId}`;
         dialogTmdbLink.style.display = 'inline-block';
-        
-        // IMDb link - via TMDb external IDs page (which provides IMDb link)
-        // This is used because we don't have direct IMDb ID, only TMDb ID
-        dialogImdbLink.href = `https://www.themoviedb.org/movie/${tmdbId}/external_ids`;
-        dialogImdbLink.style.display = 'inline-block';
     } else {
         // Hide links if no TMDb ID
         dialogTmdbLink.style.display = 'none';
-        dialogImdbLink.style.display = 'none';
     }
     
     // Show dialog
