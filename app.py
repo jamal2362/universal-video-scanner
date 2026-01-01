@@ -23,12 +23,46 @@ except ImportError:
     print("Warning: 'requests' module not available. TMDB integration disabled.")
 
 # Configuration
-MEDIA_PATH = os.environ.get('MEDIA_PATH', '/media')
+MEDIA_PATH = '/media'
 DATA_DIR = '/app/data'
 TEMP_DIR = '/app/temp'
 DB_FILE = os.path.join(DATA_DIR, 'scanned_files.json')
 POSTER_CACHE_DIR = os.path.join(DATA_DIR, 'posters')
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
+FANART_API_KEY = os.environ.get('FANART_API_KEY', '')
+IMAGE_SOURCE = os.environ.get('IMAGE_SOURCE', 'tmdb').lower()
+CONTENT_LANGUAGE = os.environ.get('CONTENT_LANGUAGE', 'en').lower()
+
+# Language code mapping from ISO 639-1 to various formats used by MediaInfo/ffprobe
+LANGUAGE_CODE_MAP = {
+    'en': ['eng', 'en', 'english'],
+    'de': ['ger', 'deu', 'de', 'german'],
+    'ru': ['rus', 'ru', 'russian'],
+    'bg': ['bul', 'bg', 'bulgarian'],
+    'fr': ['fre', 'fra', 'fr', 'french'],
+    'es': ['spa', 'es', 'spanish'],
+    'it': ['ita', 'it', 'italian'],
+    'pt': ['por', 'pt', 'portuguese'],
+    'ja': ['jpn', 'ja', 'japanese'],
+    'ko': ['kor', 'ko', 'korean'],
+    'zh': ['chi', 'zho', 'zh', 'chinese'],
+    'nl': ['dut', 'nld', 'nl', 'dutch'],
+    'pl': ['pol', 'pl', 'polish'],
+    'sv': ['swe', 'sv', 'swedish'],
+    'no': ['nor', 'no', 'norwegian'],
+    'da': ['dan', 'da', 'danish'],
+    'fi': ['fin', 'fi', 'finnish'],
+    'tr': ['tur', 'tr', 'turkish'],
+    'ar': ['ara', 'ar', 'arabic'],
+    'he': ['heb', 'he', 'hebrew'],
+    'hi': ['hin', 'hi', 'hindi'],
+    'th': ['tha', 'th', 'thai'],
+    'cs': ['cze', 'ces', 'cs', 'czech'],
+    'hu': ['hun', 'hu', 'hungarian'],
+    'ro': ['rum', 'ron', 'ro', 'romanian'],
+    'el': ['gre', 'ell', 'el', 'greek'],
+    'uk': ['ukr', 'uk', 'ukrainian'],
+}
 
 # Compiled regex patterns for better performance
 TMDB_ID_PATTERN = re.compile(r'\{tmdb-(\d+)\}', re.IGNORECASE)
@@ -51,6 +85,7 @@ STATIC_DIR = os.path.join(DATA_DIR, 'static')
 CSS_DIR = os.path.join(STATIC_DIR, 'css')
 JS_DIR = os.path.join(STATIC_DIR, 'js')
 LOCALE_DIR = os.path.join(STATIC_DIR, 'locale')
+FONTS_DIR = os.path.join(STATIC_DIR, 'fonts')
 
 # GitHub raw URLs for downloading static files
 GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/U3knOwn/universal-video-scanner/main'
@@ -60,6 +95,12 @@ GITHUB_FILES = {
     'static/js/main.js': os.path.join(JS_DIR, 'main.js'),
     'static/locale/de.json': os.path.join(LOCALE_DIR, 'de.json'),
     'static/locale/en.json': os.path.join(LOCALE_DIR, 'en.json'),
+    'static/fonts/inter.css': os.path.join(FONTS_DIR, 'inter.css'),
+    'static/fonts/Inter-Regular.woff2': os.path.join(FONTS_DIR, 'Inter-Regular.woff2'),
+    'static/fonts/Inter-Medium.woff2': os.path.join(FONTS_DIR, 'Inter-Medium.woff2'),
+    'static/fonts/Inter-SemiBold.woff2': os.path.join(FONTS_DIR, 'Inter-SemiBold.woff2'),
+    'static/fonts/Inter-Bold.woff2': os.path.join(FONTS_DIR, 'Inter-Bold.woff2'),
+    'static/favicon.ico': os.path.join(STATIC_DIR, 'favicon.ico'),
 }
 
 app = Flask(__name__,
@@ -68,7 +109,10 @@ app = Flask(__name__,
 
 # Scanner configuration constants
 FILE_WRITE_DELAY = int(os.environ.get('FILE_WRITE_DELAY', '5'))
-AUTO_REFRESH_INTERVAL = int(os.environ.get('AUTO_REFRESH_INTERVAL', '60'))
+
+# Bitrate estimation constant for format-level fallback
+# When only format-level bitrate is available, estimate audio as 10% of total
+AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO = 0.1
 
 # Supported video formats
 SUPPORTED_FORMATS = {'.mkv', '.mp4', '.m4v', '.ts', '.hevc'}
@@ -85,6 +129,7 @@ os.makedirs(TEMPLATES_DIR, exist_ok=True)
 os.makedirs(CSS_DIR, exist_ok=True)
 os.makedirs(JS_DIR, exist_ok=True)
 os.makedirs(LOCALE_DIR, exist_ok=True)
+os.makedirs(FONTS_DIR, exist_ok=True)
 os.makedirs(POSTER_CACHE_DIR, exist_ok=True)
 
 
@@ -236,46 +281,94 @@ def extract_title_and_year_from_tmdb(data, media_type):
     return title, year
 
 
-def get_tmdb_poster_by_id(tmdb_id, media_type='movie'):
-    """Fetch poster URL, title, and year from TMDB API by ID"""
+def get_tmdb_title_and_year_by_id(tmdb_id, media_type='movie'):
+    """Fetch only title and year from TMDB API by ID (without poster)"""
     if not TMDB_API_KEY or not REQUESTS_AVAILABLE:
-        return None, None, None
+        return None, None
+
+    # Validate tmdb_id is numeric
+    if not tmdb_id or not isinstance(tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
+        print(f"Invalid TMDB ID: {tmdb_id}")
+        return None, None
+
+    try:
+        url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
+        
+        # Try configured language first
+        params = {'api_key': TMDB_API_KEY, 'language': CONTENT_LANGUAGE}
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            title, year = extract_title_and_year_from_tmdb(data, media_type)
+            if title:
+                return title, year
+        
+        # If configured language request failed, try English fallback
+        if CONTENT_LANGUAGE != 'en' and response.status_code != 200:
+            params = {'api_key': TMDB_API_KEY, 'language': 'en'}
+            response = requests.get(url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                title, year = extract_title_and_year_from_tmdb(data, media_type)
+                if title:
+                    return title, year
+        
+        if response.status_code not in [200, 404]:
+            print(f"TMDB API error for ID {tmdb_id}: HTTP {response.status_code}")
+    except requests.exceptions.Timeout:
+        print(f"TMDB API timeout for ID {tmdb_id}")
+    except requests.exceptions.RequestException as e:
+        print(f"TMDB API request error for ID {tmdb_id}: {e}")
+    except Exception as e:
+        print(f"Error fetching TMDB title/year by ID {tmdb_id}: {e}")
+
+    return None, None
+
+
+def get_tmdb_poster_by_id(tmdb_id, media_type='movie'):
+    """Fetch poster URL, title, year, and rating from TMDB API by ID"""
+    if not TMDB_API_KEY or not REQUESTS_AVAILABLE:
+        return None, None, None, None
 
     # Validate tmdb_id is numeric
     if not tmdb_id or not isinstance(
             tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
         print(f"Invalid TMDB ID: {tmdb_id}")
-        return None, None, None
+        return None, None, None, None
 
     try:
         url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
         
-        # Try German first
-        params = {'api_key': TMDB_API_KEY, 'language': 'de'}
+        # Try configured language first
+        params = {'api_key': TMDB_API_KEY, 'language': CONTENT_LANGUAGE}
         response = requests.get(url, params=params, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
             backdrop_path = data.get('backdrop_path')
+            rating = data.get('vote_average')  # TMDB rating (0-10 scale)
 
             if backdrop_path:
                 title, year = extract_title_and_year_from_tmdb(data, media_type)
                 poster_url = f'https://image.tmdb.org/t/p/original{backdrop_path}'
-                return poster_url, title, year
+                return poster_url, title, year, rating
         
-        # If German request failed or didn't have poster, try English
-        if response.status_code != 200 or not data.get('backdrop_path'):
+        # If configured language request failed or didn't have poster, try English fallback
+        if CONTENT_LANGUAGE != 'en' and (response.status_code != 200 or not data.get('backdrop_path')):
             params = {'api_key': TMDB_API_KEY, 'language': 'en'}
             response = requests.get(url, params=params, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
                 backdrop_path = data.get('backdrop_path')
+                rating = data.get('vote_average')
                 
                 if backdrop_path:
                     title, year = extract_title_and_year_from_tmdb(data, media_type)
                     poster_url = f'https://image.tmdb.org/t/p/original{backdrop_path}'
-                    return poster_url, title, year
+                    return poster_url, title, year, rating
         
         if response.status_code not in [200, 404]:
             print(
@@ -288,32 +381,32 @@ def get_tmdb_poster_by_id(tmdb_id, media_type='movie'):
     except Exception as e:
         print(f"Error fetching TMDB poster by ID {tmdb_id}: {e}")
 
-    return None, None, None
+    return None, None, None, None
 
 
 def search_tmdb_poster(movie_name, media_type='movie'):
-    """Search TMDB for movie/tv show and return poster URL, title, and year"""
+    """Search TMDB for movie/tv show and return poster URL, title, year, and rating"""
     if not TMDB_API_KEY or not REQUESTS_AVAILABLE or not movie_name:
-        return None, None, None
+        return None, None, None, None
 
     # Validate and sanitize movie_name
     if not isinstance(movie_name, str):
-        return None, None, None
+        return None, None, None, None
 
     # Trim and validate length
     movie_name = movie_name.strip()
     if len(movie_name) < 1 or len(movie_name) > 200:
         print(f"Invalid movie name length: {len(movie_name)}")
-        return None, None, None
+        return None, None, None, None
 
     try:
         url = f'https://api.themoviedb.org/3/search/{media_type}'
         
-        # Try German first
+        # Try configured language first
         params = {
             'api_key': TMDB_API_KEY,
             'query': movie_name,
-            'language': 'de'
+            'language': CONTENT_LANGUAGE
         }
 
         response = requests.get(url, params=params, timeout=10)
@@ -324,14 +417,15 @@ def search_tmdb_poster(movie_name, media_type='movie'):
                 # Get first result
                 first_result = results[0]
                 backdrop_path = first_result.get('backdrop_path')
+                rating = first_result.get('vote_average')
 
                 if backdrop_path:
                     title, year = extract_title_and_year_from_tmdb(first_result, media_type)
                     poster_url = f'https://image.tmdb.org/t/p/original{backdrop_path}'
-                    return poster_url, title, year
+                    return poster_url, title, year, rating
         
-        # If German search failed or returned no results with posters, try English
-        if response.status_code != 200 or not results or not results[0].get('backdrop_path'):
+        # If configured language search failed or returned no results with posters, try English fallback
+        if CONTENT_LANGUAGE != 'en' and (response.status_code != 200 or not results or not results[0].get('backdrop_path')):
             params = {
                 'api_key': TMDB_API_KEY,
                 'query': movie_name,
@@ -345,11 +439,12 @@ def search_tmdb_poster(movie_name, media_type='movie'):
                 if results:
                     first_result = results[0]
                     backdrop_path = first_result.get('backdrop_path')
+                    rating = first_result.get('vote_average')
                     
                     if backdrop_path:
                         title, year = extract_title_and_year_from_tmdb(first_result, media_type)
                         poster_url = f'https://image.tmdb.org/t/p/original{backdrop_path}'
-                        return poster_url, title, year
+                        return poster_url, title, year, rating
         
         if response.status_code not in [200, 404]:
             print(
@@ -362,46 +457,46 @@ def search_tmdb_poster(movie_name, media_type='movie'):
     except Exception as e:
         print(f"Error searching TMDB for '{movie_name}': {e}")
 
-    return None, None, None
+    return None, None, None, None
 
 
 def get_tmdb_poster(filename):
-    """Main function: Try ID first, then fallback to name search. Returns (tmdb_id, poster_url, title, year)"""
+    """Main function: Try ID first, then fallback to name search. Returns (tmdb_id, poster_url, title, year, rating)"""
     if not TMDB_API_KEY or not REQUESTS_AVAILABLE:
-        return None, None, None, None
+        return None, None, None, None, None
 
     # Try to extract TMDB ID first
     tmdb_id = extract_tmdb_id(filename)
     if tmdb_id:
         print(f"  [TMDB] Found TMDB ID: {tmdb_id}")
         # Try movie first
-        poster_url, title, year = get_tmdb_poster_by_id(tmdb_id, 'movie')
+        poster_url, title, year, rating = get_tmdb_poster_by_id(tmdb_id, 'movie')
         if poster_url:
             print(f"  [TMDB] Poster found by ID (movie): {poster_url}")
-            return tmdb_id, poster_url, title, year
+            return tmdb_id, poster_url, title, year, rating
         # Try TV show
-        poster_url, title, year = get_tmdb_poster_by_id(tmdb_id, 'tv')
+        poster_url, title, year, rating = get_tmdb_poster_by_id(tmdb_id, 'tv')
         if poster_url:
             print(f"  [TMDB] Poster found by ID (TV): {poster_url}")
-            return tmdb_id, poster_url, title, year
+            return tmdb_id, poster_url, title, year, rating
 
     # Fallback: Search by name
     movie_name = extract_movie_name(filename)
     if movie_name:
         print(f"  [TMDB] Searching by name: '{movie_name}'")
         # Try movie search first
-        poster_url, title, year = search_tmdb_poster(movie_name, 'movie')
+        poster_url, title, year, rating = search_tmdb_poster(movie_name, 'movie')
         if poster_url:
             print(f"  [TMDB] Poster found by search (movie): {poster_url}")
-            return None, poster_url, title, year
+            return None, poster_url, title, year, rating
         # Try TV search
-        poster_url, title, year = search_tmdb_poster(movie_name, 'tv')
+        poster_url, title, year, rating = search_tmdb_poster(movie_name, 'tv')
         if poster_url:
             print(f"  [TMDB] Poster found by search (TV): {poster_url}")
-            return None, poster_url, title, year
+            return None, poster_url, title, year, rating
 
     print(f"  [TMDB] No poster found for: {filename}")
-    return None, None, None, None
+    return None, None, None, None, None
 
 
 def is_valid_tmdb_url(url):
@@ -426,14 +521,134 @@ def is_valid_tmdb_url(url):
         return False
 
 
+# Fanart.tv API Integration Functions
+
+
+def is_valid_fanart_url(url):
+    """Validate URL is from Fanart.tv to prevent SSRF attacks"""
+    if not url:
+        return False
+
+    try:
+        parsed = urlparse(url)
+        # Check scheme is https
+        if parsed.scheme != 'https':
+            return False
+        # Check hostname is exactly assets.fanart.tv
+        if parsed.netloc != 'assets.fanart.tv':
+            return False
+        # Check path starts with /fanart/
+        if not parsed.path.startswith('/fanart/'):
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def get_fanart_poster_by_id(tmdb_id, media_type='movie'):
+    """Fetch thumb poster URL from Fanart.tv API by TMDB ID"""
+    if not FANART_API_KEY or not REQUESTS_AVAILABLE:
+        return None
+
+    # Validate tmdb_id is a valid numeric string or integer
+    if not tmdb_id or not isinstance(tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
+        print(f"Invalid TMDB ID for Fanart.tv: {tmdb_id}")
+        return None
+
+    try:
+        if media_type == 'movie':
+            url = f'https://webservice.fanart.tv/v3/movies/{tmdb_id}'
+        else:  # TV show - Note: Fanart.tv uses TVDB ID for TV shows, not TMDB
+            # For TV shows, we would need TVDB ID, which we don't have
+            # So we'll return None for TV shows
+            print(f"  [FANART] TV shows not supported (requires TVDB ID)")
+            return None
+        
+        params = {'api_key': FANART_API_KEY}
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Get moviethumb for movies
+            if media_type == 'movie':
+                thumbs = data.get('moviethumb', [])
+                if thumbs:
+                    # Helper function to safely get likes
+                    def get_likes(thumb):
+                        try:
+                            return int(thumb.get('likes', 0))
+                        except (ValueError, TypeError):
+                            return 0
+                    
+                    # Filter by preferred language first
+                    preferred_thumbs = [t for t in thumbs if t.get('lang', '').lower() == CONTENT_LANGUAGE]
+                    if preferred_thumbs:
+                        preferred_thumbs_sorted = sorted(preferred_thumbs, key=get_likes, reverse=True)
+                        thumb_url = preferred_thumbs_sorted[0].get('url')
+                        if thumb_url:
+                            print(f"  [FANART] Thumb poster found in {CONTENT_LANGUAGE}: {thumb_url}")
+                            return thumb_url
+                    
+                    # Fallback to English if no images in preferred language
+                    if CONTENT_LANGUAGE != 'en':
+                        en_thumbs = [t for t in thumbs if t.get('lang', '').lower() == 'en']
+                        if en_thumbs:
+                            en_thumbs_sorted = sorted(en_thumbs, key=get_likes, reverse=True)
+                            thumb_url = en_thumbs_sorted[0].get('url')
+                            if thumb_url:
+                                print(f"  [FANART] Thumb poster found in en (fallback): {thumb_url}")
+                                return thumb_url
+                    
+                    # Final fallback: all images sorted by likes
+                    thumbs_sorted = sorted(thumbs, key=get_likes, reverse=True)
+                    thumb_url = thumbs_sorted[0].get('url')
+                    if thumb_url:
+                        print(f"  [FANART] Thumb poster found (any language): {thumb_url}")
+                        return thumb_url
+        
+        if response.status_code not in [200, 404]:
+            print(
+                f"Fanart.tv API error for ID {tmdb_id}: HTTP "
+                f"{response.status_code}")
+    except requests.exceptions.Timeout:
+        print(f"Fanart.tv API timeout for ID {tmdb_id}")
+    except requests.exceptions.RequestException as e:
+        print(f"Fanart.tv API request error for ID {tmdb_id}: {e}")
+    except Exception as e:
+        print(f"Error fetching Fanart.tv poster by ID {tmdb_id}: {e}")
+
+    return None
+
+
+def get_fanart_poster(filename):
+    """Main function for Fanart.tv: Try ID first. Returns (tmdb_id, poster_url)"""
+    if not FANART_API_KEY or not REQUESTS_AVAILABLE:
+        return None, None
+
+    # Try to extract TMDB ID first (Fanart.tv requires TMDB ID)
+    tmdb_id = extract_tmdb_id(filename)
+    if tmdb_id:
+        print(f"  [FANART] Found TMDB ID: {tmdb_id}")
+        # Try movie first
+        poster_url = get_fanart_poster_by_id(tmdb_id, 'movie')
+        if poster_url:
+            print(f"  [FANART] Poster found by ID (movie): {poster_url}")
+            return tmdb_id, poster_url
+        # Note: TV shows would need TVDB ID, which we don't extract
+
+    print(f"  [FANART] No poster found for: {filename}")
+    return None, None
+
+
 def download_and_cache_poster(poster_url, cache_filename):
     """Download poster image and cache it locally"""
     if not poster_url:
         return None
 
-    # Validate URL is from TMDB to prevent SSRF attacks
-    if not is_valid_tmdb_url(poster_url):
-        print(f"  [CACHE] Invalid poster URL (not from TMDB): {poster_url}")
+    # Validate URL is from TMDB or Fanart.tv to prevent SSRF attacks
+    if not is_valid_tmdb_url(poster_url) and not is_valid_fanart_url(poster_url):
+        print(f"  [CACHE] Invalid poster URL (not from TMDB or Fanart.tv): {poster_url}")
         return poster_url
 
     cache_path = os.path.join(POSTER_CACHE_DIR, cache_filename)
@@ -468,9 +683,17 @@ def get_cached_backdrop_path(tmdb_id, poster_url):
     if not poster_url:
         return None
 
-    # Generate cache filename from TMDB ID or URL
+    # Generate cache filename based on source and TMDB ID or URL hash
     if tmdb_id:
-        cache_filename = f"tmdb_{tmdb_id}.jpg"
+        # Determine source from URL validation
+        if is_valid_fanart_url(poster_url):
+            cache_filename = f"fanart_{tmdb_id}.jpg"
+        elif is_valid_tmdb_url(poster_url):
+            cache_filename = f"tmdb_{tmdb_id}.jpg"
+        else:
+            # Fallback to hash-based naming for unknown sources
+            url_hash = hashlib.md5(poster_url.encode()).hexdigest()
+            cache_filename = f"poster_{url_hash}.jpg"
     else:
         # Extract filename from URL using hash
         url_hash = hashlib.md5(poster_url.encode()).hexdigest()
@@ -496,10 +719,10 @@ def load_database():
 
 
 def migrate_poster_urls_to_cache():
-    """Migrate existing TMDB poster URLs to cached versions"""
+    """Migrate existing TMDB and Fanart.tv poster URLs to cached versions"""
     global scanned_files
 
-    if not TMDB_API_KEY or not REQUESTS_AVAILABLE:
+    if not REQUESTS_AVAILABLE:
         return
 
     migrated_count = 0
@@ -508,8 +731,8 @@ def migrate_poster_urls_to_cache():
             poster_url = file_info.get('poster_url')
             tmdb_id = file_info.get('tmdb_id')
 
-            # Check if poster URL is a TMDB URL (not cached)
-            if poster_url and is_valid_tmdb_url(poster_url):
+            # Check if poster URL is a TMDB or Fanart.tv URL (not cached)
+            if poster_url and (is_valid_tmdb_url(poster_url) or is_valid_fanart_url(poster_url)):
                 print(
                     f"  [MIGRATION] Caching poster for: "
                     f"{file_info.get('filename')}")
@@ -948,14 +1171,310 @@ def get_audio_info_mediainfo(video_file):
     return None
 
 
+def get_video_duration(video_file):
+    """Get video duration in seconds using ffprobe"""
+    try:
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'json',
+            video_file
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if 'format' in data and 'duration' in data['format']:
+                duration = float(data['format']['duration'])
+                return duration
+    except Exception as e:
+        print(f"Error getting video duration: {e}")
+    return None
+
+
+def parse_bitrate_string(bitrate_str):
+    """
+    Parse bitrate string from MediaInfo and convert to kbit/s.
+    
+    Handles formats like:
+    - "55.3 Mb/s" -> 55300 kbit/s
+    - "9 039 kb/s" -> 9039 kbit/s
+    - "1.5 Gb/s" -> 1500000 kbit/s
+    
+    Args:
+        bitrate_str: String representation of bitrate (e.g., "55.3 Mb/s")
+        
+    Returns:
+        int: Bitrate in kbit/s, or None if parsing fails
+    """
+    if not bitrate_str:
+        return None
+    
+    try:
+        # Remove spaces from numbers like "9 039" -> "9039"
+        bitrate_str_clean = bitrate_str.replace(' ', '')
+        
+        # Match patterns like "55.3Mb/s", "9039kb/s", etc.
+        match = re.search(r'([\d.]+)(Mb|Gb|Kb|b)/s', bitrate_str_clean, re.IGNORECASE)
+        if match:
+            value = float(match.group(1))
+            unit = match.group(2).lower()
+            
+            # Convert to kbit/s
+            if unit == 'gb':
+                return int(value * 1000000)
+            elif unit == 'mb':
+                return int(value * 1000)
+            elif unit == 'kb':
+                return int(value)
+            elif unit == 'b':
+                return int(value / 1000)
+    except (ValueError, AttributeError):
+        pass
+    
+    return None
+
+
+
+def get_video_bitrate(video_file):
+    """Get video bitrate in kbit/s using ffprobe with multiple fallback mechanisms"""
+    try:
+        # Primary + Fallback 1: Try to get BPS from stream tags (MKV) and bit_rate field (MP4)
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=bit_rate:stream_tags=BPS',
+            '-of', 'json',
+            video_file
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if 'streams' in data and len(data['streams']) > 0:
+                stream = data['streams'][0]
+                
+                # Primary: Try BPS from stream tags (MKV containers)
+                tags = stream.get('tags', {})
+                bps = tags.get('BPS')
+                if bps:
+                    # BPS is in bit/s, convert to kbit/s
+                    return int(int(bps) / 1000)
+                
+                # Fallback 1: Try bit_rate field (MP4 and other containers)
+                bit_rate = stream.get('bit_rate')
+                if bit_rate:
+                    # bit_rate is in bit/s, convert to kbit/s
+                    return int(int(bit_rate) / 1000)
+        
+        # Fallback 2: Try format-level bitrate
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-show_entries', 'format=bit_rate',
+            '-of', 'json',
+            video_file
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if 'format' in data:
+                format_bitrate = data['format'].get('bit_rate')
+                if format_bitrate:
+                    # Format bitrate includes all streams, but it's better than nothing
+                    # Convert from bit/s to kbit/s
+                    return int(int(format_bitrate) / 1000)
+        
+        # Fallback 3: Try MediaInfo
+        cmd = ['mediainfo', '--Output=JSON', video_file]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if data.get('media') and 'track' in data['media']:
+                for track in data['media']['track']:
+                    if track.get('@type') == 'Video':
+                        # Try BitRate field (in bit/s)
+                        bitrate = track.get('BitRate')
+                        if bitrate:
+                            # Convert from bit/s to kbit/s
+                            return int(int(bitrate) / 1000)
+                        # Try BitRate_String (e.g., "55.3 Mb/s")
+                        bitrate_str = track.get('BitRate_String')
+                        if bitrate_str:
+                            result = parse_bitrate_string(bitrate_str)
+                            if result:
+                                return result
+    except Exception as e:
+        print(f"Error getting video bitrate: {e}")
+    return None
+
+
+def get_audio_bitrate(video_file):
+    """Get audio bitrate in kbit/s for the preferred language track using ffprobe with multiple fallback mechanisms"""
+    # Get language codes for the configured language and English fallback
+    preferred_lang_codes = LANGUAGE_CODE_MAP.get(CONTENT_LANGUAGE, [CONTENT_LANGUAGE.lower()])
+    english_lang_codes = LANGUAGE_CODE_MAP.get('en', ['eng', 'en', 'english'])
+    
+    try:
+        # Primary + Fallback 1: Try to get BPS from stream tags (MKV) and bit_rate field (MP4)
+        cmd = [
+            'ffprobe',
+            '-v',
+            'error',
+            '-select_streams',
+            'a',
+            '-show_entries',
+            'stream=index,bit_rate:stream_tags=language,BPS',
+            '-of',
+            'json',
+            video_file]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if 'streams' in data and len(data['streams']) > 0:
+                # Try to find preferred language audio track first, then English, then first track
+                preferred_stream = None
+                english_stream = None
+                first_stream = None
+
+                for stream in data['streams']:
+                    tags = stream.get('tags', {})
+                    language = tags.get('language', '').lower()
+
+                    if first_stream is None:
+                        first_stream = stream
+
+                    if language in preferred_lang_codes:
+                        preferred_stream = stream
+                        # If preferred language is English, also set english_stream
+                        if language in english_lang_codes:
+                            english_stream = stream
+                        break
+                    
+                    if english_stream is None and language in english_lang_codes:
+                        english_stream = stream
+
+                # Use preferred language track if found, otherwise English, otherwise first track
+                selected_stream = preferred_stream if preferred_stream else (english_stream if english_stream else first_stream)
+
+                if selected_stream:
+                    tags = selected_stream.get('tags', {})
+                    
+                    # Primary: Try BPS from stream tags (MKV containers)
+                    bps = tags.get('BPS')
+                    if bps:
+                        # BPS is in bit/s, convert to kbit/s
+                        return int(int(bps) / 1000)
+                    
+                    # Fallback 1: Try bit_rate field (MP4 and other containers)
+                    bit_rate = selected_stream.get('bit_rate')
+                    if bit_rate:
+                        # Convert from bit/s to kbit/s
+                        return int(int(bit_rate) / 1000)
+        
+        # Fallback 2: Try format-level bitrate (less useful for audio, but worth trying)
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-show_entries', 'format=bit_rate',
+            '-of', 'json',
+            video_file
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if 'format' in data:
+                format_bitrate = data['format'].get('bit_rate')
+                if format_bitrate:
+                    # Format bitrate includes all streams, estimate audio using configured ratio
+                    # This is a rough estimate and should only be used as last resort
+                    # Convert from bit/s to kbit/s
+                    estimated_audio = int(int(format_bitrate) * AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO / 1000)
+                    if estimated_audio > 0:
+                        return estimated_audio
+        
+        # Fallback 3: Try MediaInfo
+        cmd = ['mediainfo', '--Output=JSON', video_file]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if data.get('media') and 'track' in data['media']:
+                audio_tracks = [track for track in data['media']['track'] if track.get('@type') == 'Audio']
+                if audio_tracks:
+                    # Try to find preferred language audio track first, then English, then first track
+                    preferred_track = None
+                    english_track = None
+                    first_track = audio_tracks[0] if audio_tracks else None
+                    
+                    for track in audio_tracks:
+                        language = track.get('Language', '').lower()
+                        
+                        if language in preferred_lang_codes:
+                            preferred_track = track
+                            if language in english_lang_codes:
+                                english_track = track
+                            break
+                        
+                        if english_track is None and language in english_lang_codes:
+                            english_track = track
+                    
+                    # Use preferred language track if found, otherwise English, otherwise first track
+                    selected_track = preferred_track if preferred_track else (english_track if english_track else first_track)
+                    
+                    if selected_track:
+                        # Try BitRate field (in bit/s)
+                        bitrate = selected_track.get('BitRate')
+                        if bitrate:
+                            # Convert from bit/s to kbit/s
+                            return int(int(bitrate) / 1000)
+                        # Try BitRate_String (e.g., "9 039 kb/s")
+                        bitrate_str = selected_track.get('BitRate_String')
+                        if bitrate_str:
+                            result = parse_bitrate_string(bitrate_str)
+                            if result:
+                                return result
+    except Exception as e:
+        print(f"Error getting audio bitrate: {e}")
+    return None
+
+
 def get_audio_codec(video_file):
-    """Get audio codec with detailed profile info, preferring German (ger/deu) tracks"""
+    """Get audio codec with detailed profile info, preferring configured language tracks"""
+    # Get language codes for the configured language and English fallback
+    preferred_lang_codes = LANGUAGE_CODE_MAP.get(CONTENT_LANGUAGE, [CONTENT_LANGUAGE.lower()])
+    english_lang_codes = LANGUAGE_CODE_MAP.get('en', ['eng', 'en', 'english'])
+    
     # Try MediaInfo first for better format detection (especially Atmos and
     # DTS:X)
     audio_tracks = get_audio_info_mediainfo(video_file)
     if audio_tracks:
-        # Try to find German audio track first
-        german_track = None
+        # Try to find preferred language audio track first, then English, then first track
+        preferred_track = None
+        english_track = None
         first_track = None
 
         for track in audio_tracks:
@@ -964,12 +1483,18 @@ def get_audio_codec(video_file):
             if first_track is None:
                 first_track = track
 
-            if language in ['ger', 'deu', 'de', 'german']:
-                german_track = track
+            if language in preferred_lang_codes:
+                preferred_track = track
+                # If preferred language is English, also set english_track
+                if language in english_lang_codes:
+                    english_track = track
                 break
+            
+            if english_track is None and language in english_lang_codes:
+                english_track = track
 
-        # Use German track if found, otherwise first track
-        selected_track = german_track if german_track else first_track
+        # Use preferred language track if found, otherwise English, otherwise first track
+        selected_track = preferred_track if preferred_track else (english_track if english_track else first_track)
 
         if selected_track:
             # Extract format information from MediaInfo
@@ -1068,8 +1593,9 @@ def get_audio_codec(video_file):
         if result.returncode == 0:
             data = json.loads(result.stdout)
             if 'streams' in data and len(data['streams']) > 0:
-                # Try to find German audio track first
-                german_stream = None
+                # Try to find preferred language audio track first, then English, then first track
+                preferred_stream = None
+                english_stream = None
                 first_stream = None
 
                 for stream in data['streams']:
@@ -1079,12 +1605,18 @@ def get_audio_codec(video_file):
                     if first_stream is None:
                         first_stream = stream
 
-                    if language in ['ger', 'deu', 'de']:
-                        german_stream = stream
+                    if language in preferred_lang_codes:
+                        preferred_stream = stream
+                        # If preferred language is English, also set english_stream
+                        if language in english_lang_codes:
+                            english_stream = stream
                         break
+                    
+                    if english_stream is None and language in english_lang_codes:
+                        english_stream = stream
 
-                # Use German track if found, otherwise first track
-                selected_stream = german_stream if german_stream else first_stream
+                # Use preferred language track if found, otherwise English, otherwise first track
+                selected_stream = preferred_stream if preferred_stream else (english_stream if english_stream else first_stream)
 
                 codec_name = selected_stream.get('codec_name', 'Unknown')
                 profile = selected_stream.get('profile', '').lower()
@@ -1156,10 +1688,37 @@ def scan_video_file(file_path):
     hdr_info = detect_hdr_format(file_path)
     resolution = get_video_resolution(file_path)
     audio_codec = get_audio_codec(file_path)
+    
+    # Get additional metadata for media details dialog
+    duration = get_video_duration(file_path)
+    video_bitrate = get_video_bitrate(file_path)
+    audio_bitrate = get_audio_bitrate(file_path)
+    file_size = os.path.getsize(file_path)
 
-    # Get TMDB poster, title, and year
+    # Get poster, title, and year based on IMAGE_SOURCE setting
     filename = os.path.basename(file_path)
-    tmdb_id, poster_url, tmdb_title, tmdb_year = get_tmdb_poster(filename)
+    tmdb_id = None
+    poster_url = None
+    tmdb_title = None
+    tmdb_year = None
+    tmdb_rating = None
+    
+    if IMAGE_SOURCE == 'fanart':
+        # Use Fanart.tv for poster
+        tmdb_id, poster_url = get_fanart_poster(filename)
+        # Fetch title, year and rating from TMDB if we have a TMDB ID and API key
+        if tmdb_id and TMDB_API_KEY:
+            print(f"  [TMDB] Fetching title/year/rating for Fanart.tv poster...")
+            # Try movie first - use get_tmdb_poster_by_id to get rating too
+            _, tmdb_title, tmdb_year, tmdb_rating = get_tmdb_poster_by_id(tmdb_id, 'movie')
+            if not tmdb_title:
+                # Try TV show
+                _, tmdb_title, tmdb_year, tmdb_rating = get_tmdb_poster_by_id(tmdb_id, 'tv')
+            if tmdb_title:
+                print(f"  [TMDB] Title/year/rating found: {tmdb_title} ({tmdb_year}) - Rating: {tmdb_rating}")
+    else:
+        # Use TMDB (default)
+        tmdb_id, poster_url, tmdb_title, tmdb_year, tmdb_rating = get_tmdb_poster(filename)
 
     # Cache the poster if we got a URL
     cached_backdrop_path = None
@@ -1178,7 +1737,12 @@ def scan_video_file(file_path):
         'tmdb_id': tmdb_id,
         'poster_url': cached_backdrop_path if cached_backdrop_path else poster_url,
         'tmdb_title': tmdb_title,
-        'tmdb_year': tmdb_year
+        'tmdb_year': tmdb_year,
+        'tmdb_rating': tmdb_rating,
+        'duration': duration,
+        'video_bitrate': video_bitrate,
+        'audio_bitrate': audio_bitrate,
+        'file_size': file_size
     }
 
     with scan_lock:
@@ -1289,8 +1853,7 @@ def index():
 
     return render_template('index.html',
                            files=files_list,
-                           file_count=len(files_list),
-                           auto_refresh_interval=AUTO_REFRESH_INTERVAL)
+                           file_count=len(files_list))
 
 
 @app.route('/scan', methods=['POST'])
@@ -1340,16 +1903,15 @@ def get_files():
                 ext = os.path.splitext(file)[1].lower()
                 if ext in SUPPORTED_FORMATS:
                     file_path = os.path.join(root, file)
-                    relative_path = os.path.relpath(file_path, MEDIA_PATH)
                     is_scanned = file_path in scanned_paths
                     all_files.append({
                         'path': file_path,
-                        'name': relative_path,
+                        'name': file,  # Only filename, not path
                         'scanned': is_scanned
                     })
 
-        # Sort by name
-        all_files.sort(key=lambda x: x['name'])
+        # Sort by name (A-Z, case-insensitive)
+        all_files.sort(key=lambda x: x['name'].lower())
 
         return jsonify({
             'success': True,
@@ -1473,8 +2035,28 @@ def main():
     # Load existing database
     load_database()
 
+    # Show configured content language
+    print(f"Content language: {CONTENT_LANGUAGE.upper()}")
+
     # Migrate existing poster URLs to cached versions
-    if TMDB_API_KEY:
+    if REQUESTS_AVAILABLE:
+        print(f"Image source: {IMAGE_SOURCE.upper()}")
+        if IMAGE_SOURCE == 'fanart':
+            if FANART_API_KEY:
+                print("✓ Fanart.tv API key configured")
+            else:
+                print("⚠ Warning: Fanart.tv selected but FANART_API_KEY not configured - no posters will be fetched")
+        elif IMAGE_SOURCE == 'tmdb':
+            if TMDB_API_KEY:
+                print("✓ TMDB API key configured")
+            else:
+                print("⚠ Warning: TMDB selected but TMDB_API_KEY not configured - no posters will be fetched")
+        else:
+            print(f"⚠ Warning: Unknown IMAGE_SOURCE '{IMAGE_SOURCE}' - defaulting to TMDB")
+            if TMDB_API_KEY:
+                print("✓ TMDB API key configured")
+            else:
+                print("⚠ Warning: TMDB_API_KEY not configured - no posters will be fetched")
         print("Migrating poster URLs to cache...")
         migrate_poster_urls_to_cache()
 

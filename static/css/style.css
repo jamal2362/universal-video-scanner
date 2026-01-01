@@ -2,10 +2,10 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #1e1e2e;
     background-color: #1e1e2e;
     color: white;
@@ -125,6 +125,15 @@ h1 {
 
 .stats strong {
     color: #e6eef6;
+}
+
+button,
+input,
+select,
+textarea,
+optgroup,
+option {
+    font-family: inherit;
 }
 
 .button-group {
@@ -432,17 +441,220 @@ tbody tr:hover {
     text-align: center;
     overflow-wrap: break-word;
     word-break: break-word;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.filename-fallback:hover {
+    color: #4ecca3;
+}
+
+.poster-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.poster-container:hover .poster-img {
+    transform: scale(1.05);
+}
+
+.poster-container:hover .poster-title {
+    color: #4ecca3;
+}
+
+.poster-img-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.imdb-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: linear-gradient(135deg, #f5c518 0%, #e6b800 100%);
+    color: #000;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 0.85em;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 10;
+}
+
+.imdb-logo {
+    font-size: 1.1em;
+    color: #000;
+}
+
+.imdb-rating {
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.media-dialog-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 1000;
+    overflow-y: auto;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.media-dialog {
+    margin: auto;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+
+.media-dialog-overlay.active {
+    display: flex;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.media-dialog {
+    background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%);
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 500px;
+    width: 90%;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.dialog-close {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 2em;
+    cursor: pointer;
+    line-height: 1;
+    padding: 5px 10px;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.dialog-close:hover {
+    color: #4ecca3;
+    transform: scale(1.1);
+}
+
+.dialog-title {
+    text-align: center;
+    color: white;
+    font-size: 1.5em;
+    margin-bottom: 30px;
+    padding-right: 30px;
+    line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+
+.dialog-poster {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.dialog-poster-img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dialog-info {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.dialog-info-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-align: center;
+}
+
+.dialog-label {
+    color: white;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+.dialog-value {
+    color: #c2c2c2;
+    font-size: 1.1em;
+    font-weight: bold;
+}
+
+.dialog-links {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.dialog-link {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    color: white;
+}
+
+.dialog-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dialog-link.tmdb {
+    background: linear-gradient(135deg, #01b4e4 0%, #0190b8 100%);
 }
 
 .empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: white;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  text-align: center;
 }
 
 .empty-state h2 {
     font-size: 1.5em;
-    margin-bottom: 10px;
 }
 
 .select-enhanced {
@@ -659,6 +871,15 @@ tbody tr:hover {
     animation: spin 0.9s linear infinite;
 }
 
+.media-dialog::-webkit-scrollbar {
+    display: none;
+}
+
+.media-dialog {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
@@ -842,6 +1063,40 @@ tbody tr:hover {
 
     .language-switcher select#languageDropdown {
         width: auto;
+    }
+
+    .media-dialog {
+        padding: 20px;
+        max-width: 95%;
+    }
+
+    .dialog-title {
+        font-size: 1.2em;
+        margin-bottom: 20px;
+        padding-right: 20px;
+    }
+
+    .dialog-close {
+        font-size: 1.8em;
+        top: 10px;
+        right: 10px;
+    }
+
+    .dialog-info {
+        gap: 30px;
+    }
+
+    .dialog-link {
+        padding: 8px 16px;
+        font-size: 0.9em;
+    }
+
+    .empty-state {
+        margin-bottom: 20px;
+    }
+
+    .empty-state h2 {
+        font-size: 1.2em;
     }
 }
 

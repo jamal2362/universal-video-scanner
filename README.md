@@ -85,7 +85,6 @@ The dashboard displays the following information:
 
 - 📊 Tabular overview of all scanned media
 - 🌙 Dark theme for comfortable viewing
-- 🔄 Auto-refresh every 60 seconds
 - ⚡ Live status during scanning
 
 ## Technical Details 🔧
@@ -119,10 +118,67 @@ DoVi-Detector/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MEDIA_PATH` | `/media` | Path to media directory |
 | `FILE_WRITE_DELAY` | `5` | Wait time in seconds after file creation before scanning |
-| `AUTO_REFRESH_INTERVAL` | `60` | Auto-refresh interval of web UI in seconds |
 | `TMDB_API_KEY` | `` | TMDB API key for fetching movie posters (optional) |
+| `FANART_API_KEY` | `` | Fanart.tv API key for fetching thumb posters (optional) |
+| `IMAGE_SOURCE` | `tmdb` | Image source selection: `tmdb` (default) or `fanart` |
+| `CONTENT_LANGUAGE` | `en` | Preferred content language (ISO 639-1 code) for TMDB/Fanart.tv content and audio track selection |
+
+### Content Language Configuration
+
+The `CONTENT_LANGUAGE` environment variable controls:
+1. **TMDB/Fanart.tv Content**: Language for movie titles, descriptions, and posters
+2. **Audio Track Selection**: Preferred audio track language
+
+**Supported Language Codes** (ISO 639-1):
+- `en` - English (default)
+- `de` - German
+- `ru` - Russian
+- `bg` - Bulgarian
+- `fr` - French
+- `es` - Spanish
+- `it` - Italian
+- `pt` - Portuguese
+- `ja` - Japanese
+- `ko` - Korean
+- `zh` - Chinese
+- `nl` - Dutch
+- `pl` - Polish
+- `sv` - Swedish
+- `no` - Norwegian
+- `da` - Danish
+- `fi` - Finnish
+- `tr` - Turkish
+- `ar` - Arabic
+- `he` - Hebrew
+- `hi` - Hindi
+- `th` - Thai
+- `cs` - Czech
+- `hu` - Hungarian
+- `ro` - Romanian
+- `el` - Greek
+- `uk` - Ukrainian
+
+**Fallback Behavior**:
+- TMDB queries: If content is not available in the configured language, it falls back to English (`en`)
+- Audio tracks: Prefers configured language → English (`eng`) → first available track
+
+**Example Configuration**:
+
+```yaml
+environment:
+  - CONTENT_LANGUAGE=ru  # Russian for TMDB content + preferred audio track
+```
+
+```yaml
+environment:
+  - CONTENT_LANGUAGE=de  # German
+```
+
+```yaml
+environment:
+  - CONTENT_LANGUAGE=bg  # Bulgarian
+```
 
 ### TMDB API Integration (Optional)
 
@@ -153,6 +209,40 @@ TMDB_API_KEY=your_api_key_here
 
 **Without TMDB API Key:**
 - The app will still work normally, displaying filenames instead of posters
+
+### Fanart.tv API Integration (Optional)
+
+To use Fanart.tv as an alternative image source for thumb posters:
+
+1. Get a free API key from [Fanart.tv](https://fanart.tv/get-an-api-key/)
+2. Add it to your `docker-compose.yml`:
+
+```yaml
+environment:
+  - FANART_API_KEY=your_api_key_here
+  - IMAGE_SOURCE=fanart
+```
+
+Or create/update a `.env` file in the project root:
+
+```
+FANART_API_KEY=your_api_key_here
+IMAGE_SOURCE=fanart
+```
+
+**Image Source Selection:**
+- `IMAGE_SOURCE=tmdb` (default) - Use TMDB for posters
+- `IMAGE_SOURCE=fanart` - Use Fanart.tv for thumb posters
+
+**Important Notes:**
+- Fanart.tv requires TMDB ID in the filename: `{tmdb-12345}`
+- Only movies are supported (TV shows require TVDB ID which is not currently extracted)
+- No fallback between sources - only the selected source is used
+- Both API keys can be configured, but only the selected source will be used
+- Poster images are automatically cached in `/app/data/posters/`
+
+**Without Fanart.tv API Key:**
+- The app will still work normally with TMDB or displaying filenames
 
 ## Docker Compose Options 🐳
 
@@ -227,7 +317,6 @@ pip3 install -r requirements.txt
 # ffmpeg and dovi_tool must be installed manually
 
 # Start app
-export MEDIA_PATH=/path/to/media
 python3 app.py
 ```
 

@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DoVi Detector</title>
+    <title>Universal Video Scanner</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -60,8 +62,8 @@
                 <tr>
                     <th data-i18n="table_header_poster"></th>
                     <th data-i18n="table_header_hdr"></th>
-                    <th data-i18n="table_header_resolution"></th>
                     <th data-i18n="table_header_audio"></th>
+                    <th data-i18n="table_header_resolution"></th>
                 </tr>
             </thead>
             <tbody>
@@ -70,16 +72,42 @@
                 <tr data-hdr-format="{{ file.hdr_format }}" data-hdr-detail="{{ file.hdr_detail }}" data-el-type="{{ file.el_type or '' }}">
                     <td data-label-i18n="table_header_poster" data-label="Poster / Dateiname" title="{{ file.filename }}">
                         {% if file.poster_url %}
-                        <div class="poster-container">
+                        <div class="poster-container" 
+                             data-title="{{ file.tmdb_title|default(file.filename) }}" 
+                             data-year="{{ file.tmdb_year|default('') }}"
+                             data-duration="{{ file.duration|default('') }}"
+                             data-video-bitrate="{{ file.video_bitrate|default('') }}"
+                             data-audio-bitrate="{{ file.audio_bitrate|default('') }}"
+                             data-file-size="{{ file.file_size|default('') }}"
+                             data-poster-url="{{ file.poster_url|default('') }}"
+                             data-tmdb-id="{{ file.tmdb_id|default('') }}"
+                             onclick="showMediaDialogFromData(this)">
                             {% if file.tmdb_title %}
                             <span class="poster-title">
                                 {{ file.tmdb_title }}{% if file.tmdb_year %} ({{ file.tmdb_year }}){% endif %}
                             </span>
                             {% endif %}
-                            <img src="{{ file.poster_url }}" alt="{{ file.filename }}" class="poster-img" loading="lazy">
+                            <div class="poster-img-wrapper">
+                                <img src="{{ file.poster_url }}" alt="{{ file.filename }}" class="poster-img" loading="lazy">
+                                {% if file.tmdb_rating %}
+                                <div class="imdb-badge">
+                                    <span class="imdb-logo">★</span>
+                                    <span class="imdb-rating">{{ "%.1f"|format(file.tmdb_rating) }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
                         </div>
                         {% else %}
-                        <span class="filename-fallback">{{ file.filename }}</span>
+                        <span class="filename-fallback"
+                              data-title="{{ file.filename }}"
+                              data-year=""
+                              data-duration="{{ file.duration|default('') }}"
+                              data-video-bitrate="{{ file.video_bitrate|default('') }}"
+                              data-audio-bitrate="{{ file.audio_bitrate|default('') }}"
+                              data-file-size="{{ file.file_size|default('') }}"
+                              data-poster-url="{{ file.poster_url|default('') }}"
+                              data-tmdb-id="{{ file.tmdb_id|default('') }}"
+                              onclick="showMediaDialogFromData(this)">{{ file.filename }}</span>
                         {% endif %}
                     </td>
 
@@ -106,17 +134,6 @@
                         </span>
                         {% endif %}
                         {% endif %}
-                    </td>
-
-                    <td data-label-i18n="table_header_resolution">
-                        {% if 'x' in file.resolution and file.resolution not in ['4K (UHD)', '1080p (Full HD)', '720p (HD)', '480p (SD)', '1440p', '8K (UHD)', '768p'] %}
-                            {% set resolution_class = 'unknown' %}
-                        {% else %}
-                            {% set resolution_class = file.resolution.lower().replace(' ', '-') %}
-                        {% endif %}
-                        <span class="resolution-badge resolution-{{ resolution_class }}">
-                            {{ file.resolution }}
-                        </span>
                     </td>
 
                     <td class="audio-codec" data-label-i18n="table_header_audio">
@@ -152,6 +169,17 @@
                             {% endif %}
                         </span>
                     </td>
+
+                    <td data-label-i18n="table_header_resolution">
+                        {% if 'x' in file.resolution and file.resolution not in ['4K (UHD)', '1080p (Full HD)', '720p (HD)', '480p (SD)', '1440p', '8K (UHD)', '768p'] %}
+                            {% set resolution_class = 'unknown' %}
+                        {% else %}
+                            {% set resolution_class = file.resolution.lower().replace(' ', '-') %}
+                        {% endif %}
+                        <span class="resolution-badge resolution-{{ resolution_class }}">
+                            {{ file.resolution }}
+                        </span>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -178,6 +206,41 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Media Details Dialog -->
+    <div class="media-dialog-overlay" id="mediaDialogOverlay" onclick="closeMediaDialog(event)" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+        <div class="media-dialog" onclick="event.stopPropagation()">
+            <button class="dialog-close" onclick="closeMediaDialog(event)" aria-label="Close dialog">&times;</button>
+            <h2 class="dialog-title" id="dialogTitle"></h2>
+            <div class="dialog-poster" id="dialogPoster" style="display: none;">
+                <img id="dialogPosterImg" class="dialog-poster-img" src="" alt="Poster">
+            </div>
+            <div class="dialog-info">
+                <div class="dialog-info-item">
+                    <span class="dialog-label" data-i18n="dialog_duration"></span>
+                    <span class="dialog-value" id="dialogDuration"></span>
+                </div>
+                <div class="dialog-info-item">
+                    <span class="dialog-label" data-i18n="dialog_file_size"></span>
+                    <span class="dialog-value" id="dialogFileSize"></span>
+                </div>
+                <div class="dialog-info-item">
+                    <span class="dialog-label" data-i18n="dialog_video_bitrate"></span>
+                    <span class="dialog-value" id="dialogVideoBitrate"></span>
+                </div>
+                <div class="dialog-info-item">
+                    <span class="dialog-label" data-i18n="dialog_audio_bitrate"></span>
+                    <span class="dialog-value" id="dialogAudioBitrate"></span>
+                </div>
+                <div class="dialog-info-item">
+                    <span class="dialog-label" data-i18n="dialog_links"></span>
+                    <div class="dialog-links">
+                        <a id="dialogTmdbLink" class="dialog-link tmdb" href="#" target="_blank" rel="noopener noreferrer">TMDb</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
