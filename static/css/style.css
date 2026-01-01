@@ -2,10 +2,10 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {
-    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #1e1e2e;
     background-color: #1e1e2e;
     color: white;
@@ -125,6 +125,15 @@ h1 {
 
 .stats strong {
     color: #e6eef6;
+}
+
+button,
+input,
+select,
+textarea,
+optgroup,
+option {
+    font-family: inherit;
 }
 
 .button-group {
