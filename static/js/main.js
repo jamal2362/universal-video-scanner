@@ -656,7 +656,8 @@ function formatDuration(seconds) {
 }
 
 function formatFileSize(bytes) {
-    if (!bytes || bytes <= 0) return 'Unknown';
+    if (!bytes && bytes !== 0) return 'Unknown';
+    if (bytes < 0) return 'Unknown';
     
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let size = bytes;
@@ -667,7 +668,9 @@ function formatFileSize(bytes) {
         unitIndex++;
     }
     
-    return `${size.toFixed(2)} ${units[unitIndex]}`;
+    // For bytes, don't show decimals. For larger units, show 2 decimals
+    const formattedSize = unitIndex === 0 ? size.toString() : size.toFixed(2);
+    return `${formattedSize} ${units[unitIndex]}`;
 }
 
 function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, fileSize, posterUrl, tmdbId) {
