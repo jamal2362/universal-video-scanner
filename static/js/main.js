@@ -703,7 +703,7 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     dialogDuration.textContent = formatDuration(duration);
     
     // Set file size
-    if (fileSize && fileSize > 0) {
+    if (fileSize !== null && fileSize !== undefined && fileSize >= 0) {
         dialogFileSize.textContent = formatFileSize(fileSize);
     } else {
         dialogFileSize.textContent = 'Unknown';
