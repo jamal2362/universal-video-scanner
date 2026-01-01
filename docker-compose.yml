@@ -15,3 +15,5 @@ services:
       - AUTO_REFRESH_INTERVAL=60
       - FILE_WRITE_DELAY=5
       - TMDB_API_KEY=${TMDB_API_KEY:-}  # Add your TMDB API key here or set via .env file
+      - FANART_API_KEY=${FANART_API_KEY:-}  # Add your Fanart.tv API key here or set via .env file
+      - IMAGE_SOURCE=${IMAGE_SOURCE:-tmdb}  # Image source: 'tmdb' (default) or 'fanart'

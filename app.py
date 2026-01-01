@@ -29,6 +29,8 @@ TEMP_DIR = '/app/temp'
 DB_FILE = os.path.join(DATA_DIR, 'scanned_files.json')
 POSTER_CACHE_DIR = os.path.join(DATA_DIR, 'posters')
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
+FANART_API_KEY = os.environ.get('FANART_API_KEY', '')
+IMAGE_SOURCE = os.environ.get('IMAGE_SOURCE', 'tmdb').lower()
 
 # Compiled regex patterns for better performance
 TMDB_ID_PATTERN = re.compile(r'\{tmdb-(\d+)\}', re.IGNORECASE)
@@ -426,14 +428,113 @@ def is_valid_tmdb_url(url):
         return False
 
 
+# Fanart.tv API Integration Functions
+
+
+def is_valid_fanart_url(url):
+    """Validate URL is from Fanart.tv to prevent SSRF attacks"""
+    if not url:
+        return False
+
+    try:
+        parsed = urlparse(url)
+        # Check scheme is https
+        if parsed.scheme != 'https':
+            return False
+        # Check hostname is exactly assets.fanart.tv
+        if parsed.netloc != 'assets.fanart.tv':
+            return False
+        # Check path starts with /fanart/
+        if not parsed.path.startswith('/fanart/'):
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def get_fanart_poster_by_id(tmdb_id, media_type='movie'):
+    """Fetch thumb poster URL from Fanart.tv API by TMDB ID"""
+    if not FANART_API_KEY or not REQUESTS_AVAILABLE:
+        return None
+
+    # Validate tmdb_id is a valid numeric string or integer
+    if not tmdb_id or not isinstance(tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
+        print(f"Invalid TMDB ID for Fanart.tv: {tmdb_id}")
+        return None
+
+    try:
+        if media_type == 'movie':
+            url = f'https://webservice.fanart.tv/v3/movies/{tmdb_id}'
+        else:  # TV show - Note: Fanart.tv uses TVDB ID for TV shows, not TMDB
+            # For TV shows, we would need TVDB ID, which we don't have
+            # So we'll return None for TV shows
+            print(f"  [FANART] TV shows not supported (requires TVDB ID)")
+            return None
+        
+        params = {'api_key': FANART_API_KEY}
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Get moviethumb for movies
+            if media_type == 'movie':
+                thumbs = data.get('moviethumb', [])
+                if thumbs:
+                    # Get the first thumb with highest likes (safely handle non-numeric likes)
+                    def get_likes(thumb):
+                        try:
+                            return int(thumb.get('likes', 0))
+                        except (ValueError, TypeError):
+                            return 0
+                    thumbs_sorted = sorted(thumbs, key=get_likes, reverse=True)
+                    thumb_url = thumbs_sorted[0].get('url')
+                    if thumb_url:
+                        print(f"  [FANART] Thumb poster found: {thumb_url}")
+                        return thumb_url
+        
+        if response.status_code not in [200, 404]:
+            print(
+                f"Fanart.tv API error for ID {tmdb_id}: HTTP "
+                f"{response.status_code}")
+    except requests.exceptions.Timeout:
+        print(f"Fanart.tv API timeout for ID {tmdb_id}")
+    except requests.exceptions.RequestException as e:
+        print(f"Fanart.tv API request error for ID {tmdb_id}: {e}")
+    except Exception as e:
+        print(f"Error fetching Fanart.tv poster by ID {tmdb_id}: {e}")
+
+    return None
+
+
+def get_fanart_poster(filename):
+    """Main function for Fanart.tv: Try ID first. Returns (tmdb_id, poster_url)"""
+    if not FANART_API_KEY or not REQUESTS_AVAILABLE:
+        return None, None
+
+    # Try to extract TMDB ID first (Fanart.tv requires TMDB ID)
+    tmdb_id = extract_tmdb_id(filename)
+    if tmdb_id:
+        print(f"  [FANART] Found TMDB ID: {tmdb_id}")
+        # Try movie first
+        poster_url = get_fanart_poster_by_id(tmdb_id, 'movie')
+        if poster_url:
+            print(f"  [FANART] Poster found by ID (movie): {poster_url}")
+            return tmdb_id, poster_url
+        # Note: TV shows would need TVDB ID, which we don't extract
+
+    print(f"  [FANART] No poster found for: {filename}")
+    return None, None
+
+
 def download_and_cache_poster(poster_url, cache_filename):
     """Download poster image and cache it locally"""
     if not poster_url:
         return None
 
-    # Validate URL is from TMDB to prevent SSRF attacks
-    if not is_valid_tmdb_url(poster_url):
-        print(f"  [CACHE] Invalid poster URL (not from TMDB): {poster_url}")
+    # Validate URL is from TMDB or Fanart.tv to prevent SSRF attacks
+    if not is_valid_tmdb_url(poster_url) and not is_valid_fanart_url(poster_url):
+        print(f"  [CACHE] Invalid poster URL (not from TMDB or Fanart.tv): {poster_url}")
         return poster_url
 
     cache_path = os.path.join(POSTER_CACHE_DIR, cache_filename)
@@ -468,9 +569,17 @@ def get_cached_backdrop_path(tmdb_id, poster_url):
     if not poster_url:
         return None
 
-    # Generate cache filename from TMDB ID or URL
+    # Generate cache filename based on source and TMDB ID or URL hash
     if tmdb_id:
-        cache_filename = f"tmdb_{tmdb_id}.jpg"
+        # Determine source from URL validation
+        if is_valid_fanart_url(poster_url):
+            cache_filename = f"fanart_{tmdb_id}.jpg"
+        elif is_valid_tmdb_url(poster_url):
+            cache_filename = f"tmdb_{tmdb_id}.jpg"
+        else:
+            # Fallback to hash-based naming for unknown sources
+            url_hash = hashlib.md5(poster_url.encode()).hexdigest()
+            cache_filename = f"poster_{url_hash}.jpg"
     else:
         # Extract filename from URL using hash
         url_hash = hashlib.md5(poster_url.encode()).hexdigest()
@@ -496,10 +605,10 @@ def load_database():
 
 
 def migrate_poster_urls_to_cache():
-    """Migrate existing TMDB poster URLs to cached versions"""
+    """Migrate existing TMDB and Fanart.tv poster URLs to cached versions"""
     global scanned_files
 
-    if not TMDB_API_KEY or not REQUESTS_AVAILABLE:
+    if not REQUESTS_AVAILABLE:
         return
 
     migrated_count = 0
@@ -508,8 +617,8 @@ def migrate_poster_urls_to_cache():
             poster_url = file_info.get('poster_url')
             tmdb_id = file_info.get('tmdb_id')
 
-            # Check if poster URL is a TMDB URL (not cached)
-            if poster_url and is_valid_tmdb_url(poster_url):
+            # Check if poster URL is a TMDB or Fanart.tv URL (not cached)
+            if poster_url and (is_valid_tmdb_url(poster_url) or is_valid_fanart_url(poster_url)):
                 print(
                     f"  [MIGRATION] Caching poster for: "
                     f"{file_info.get('filename')}")
@@ -1157,9 +1266,20 @@ def scan_video_file(file_path):
     resolution = get_video_resolution(file_path)
     audio_codec = get_audio_codec(file_path)
 
-    # Get TMDB poster, title, and year
+    # Get poster, title, and year based on IMAGE_SOURCE setting
     filename = os.path.basename(file_path)
-    tmdb_id, poster_url, tmdb_title, tmdb_year = get_tmdb_poster(filename)
+    tmdb_id = None
+    poster_url = None
+    tmdb_title = None
+    tmdb_year = None
+    
+    if IMAGE_SOURCE == 'fanart':
+        # Use Fanart.tv
+        tmdb_id, poster_url = get_fanart_poster(filename)
+        # Note: Fanart.tv doesn't provide title/year, so we keep them as None
+    else:
+        # Use TMDB (default)
+        tmdb_id, poster_url, tmdb_title, tmdb_year = get_tmdb_poster(filename)
 
     # Cache the poster if we got a URL
     cached_backdrop_path = None
@@ -1474,7 +1594,24 @@ def main():
     load_database()
 
     # Migrate existing poster URLs to cached versions
-    if TMDB_API_KEY:
+    if REQUESTS_AVAILABLE:
+        print(f"Image source: {IMAGE_SOURCE.upper()}")
+        if IMAGE_SOURCE == 'fanart':
+            if FANART_API_KEY:
+                print("✓ Fanart.tv API key configured")
+            else:
+                print("⚠ Warning: Fanart.tv selected but FANART_API_KEY not configured - no posters will be fetched")
+        elif IMAGE_SOURCE == 'tmdb':
+            if TMDB_API_KEY:
+                print("✓ TMDB API key configured")
+            else:
+                print("⚠ Warning: TMDB selected but TMDB_API_KEY not configured - no posters will be fetched")
+        else:
+            print(f"⚠ Warning: Unknown IMAGE_SOURCE '{IMAGE_SOURCE}' - defaulting to TMDB")
+            if TMDB_API_KEY:
+                print("✓ TMDB API key configured")
+            else:
+                print("⚠ Warning: TMDB_API_KEY not configured - no posters will be fetched")
         print("Migrating poster URLs to cache...")
         migrate_poster_urls_to_cache()
 
