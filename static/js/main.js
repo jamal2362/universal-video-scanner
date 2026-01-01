@@ -656,8 +656,7 @@ function formatDuration(seconds) {
 }
 
 function formatFileSize(bytes) {
-    if (!bytes && bytes !== 0) return 'Unknown';
-    if (bytes < 0) return 'Unknown';
+    if (bytes == null || bytes < 0) return 'Unknown';
     
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let size = bytes;
@@ -703,7 +702,7 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     dialogDuration.textContent = formatDuration(duration);
     
     // Set file size
-    if (fileSize !== null && fileSize !== undefined && fileSize >= 0) {
+    if (fileSize != null && fileSize >= 0) {
         dialogFileSize.textContent = formatFileSize(fileSize);
     } else {
         dialogFileSize.textContent = 'Unknown';
