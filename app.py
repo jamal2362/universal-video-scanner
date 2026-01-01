@@ -103,6 +103,10 @@ app = Flask(__name__,
 # Scanner configuration constants
 FILE_WRITE_DELAY = int(os.environ.get('FILE_WRITE_DELAY', '5'))
 
+# Bitrate estimation constant for format-level fallback
+# When only format-level bitrate is available, estimate audio as 10% of total
+AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO = 0.1
+
 # Supported video formats
 SUPPORTED_FORMATS = {'.mkv', '.mp4', '.m4v', '.ts', '.hevc'}
 
@@ -1179,6 +1183,50 @@ def get_video_duration(video_file):
     return None
 
 
+def parse_bitrate_string(bitrate_str):
+    """
+    Parse bitrate string from MediaInfo and convert to kbit/s.
+    
+    Handles formats like:
+    - "55.3 Mb/s" -> 55300 kbit/s
+    - "9 039 kb/s" -> 9039 kbit/s
+    - "1.5 Gb/s" -> 1500000 kbit/s
+    
+    Args:
+        bitrate_str: String representation of bitrate (e.g., "55.3 Mb/s")
+        
+    Returns:
+        int: Bitrate in kbit/s, or None if parsing fails
+    """
+    if not bitrate_str:
+        return None
+    
+    try:
+        # Remove spaces from numbers like "9 039" -> "9039"
+        bitrate_str_clean = bitrate_str.replace(' ', '')
+        
+        # Match patterns like "55.3Mb/s", "9039kb/s", etc.
+        match = re.search(r'([\d.]+)(Mb|Gb|Kb|b)/s', bitrate_str_clean, re.IGNORECASE)
+        if match:
+            value = float(match.group(1))
+            unit = match.group(2).lower()
+            
+            # Convert to kbit/s
+            if unit == 'gb':
+                return int(value * 1000000)
+            elif unit == 'mb':
+                return int(value * 1000)
+            elif unit == 'kb':
+                return int(value)
+            elif unit == 'b':
+                return int(value / 1000)
+    except (ValueError, AttributeError):
+        pass
+    
+    return None
+
+
+
 def get_video_bitrate(video_file):
     """Get video bitrate in kbit/s using ffprobe with multiple fallback mechanisms"""
     try:
@@ -1254,20 +1302,9 @@ def get_video_bitrate(video_file):
                         # Try BitRate_String (e.g., "55.3 Mb/s")
                         bitrate_str = track.get('BitRate_String')
                         if bitrate_str:
-                            # Parse bitrate string
-                            import re
-                            match = re.search(r'([\d.]+)\s*(Mb|Gb|Kb|b)/s', bitrate_str, re.IGNORECASE)
-                            if match:
-                                value = float(match.group(1))
-                                unit = match.group(2).lower()
-                                if unit == 'gb':
-                                    return int(value * 1000000)
-                                elif unit == 'mb':
-                                    return int(value * 1000)
-                                elif unit == 'kb':
-                                    return int(value)
-                                elif unit == 'b':
-                                    return int(value / 1000)
+                            result = parse_bitrate_string(bitrate_str)
+                            if result:
+                                return result
     except Exception as e:
         print(f"Error getting video bitrate: {e}")
     return None
@@ -1357,10 +1394,10 @@ def get_audio_bitrate(video_file):
             if 'format' in data:
                 format_bitrate = data['format'].get('bit_rate')
                 if format_bitrate:
-                    # Format bitrate includes all streams, estimate audio as 10% of total
+                    # Format bitrate includes all streams, estimate audio using configured ratio
                     # This is a rough estimate and should only be used as last resort
                     # Convert from bit/s to kbit/s
-                    estimated_audio = int(int(format_bitrate) * 0.1 / 1000)
+                    estimated_audio = int(int(format_bitrate) * AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO / 1000)
                     if estimated_audio > 0:
                         return estimated_audio
         
@@ -1405,22 +1442,9 @@ def get_audio_bitrate(video_file):
                         # Try BitRate_String (e.g., "9 039 kb/s")
                         bitrate_str = selected_track.get('BitRate_String')
                         if bitrate_str:
-                            # Parse bitrate string - remove spaces and parse
-                            import re
-                            # Remove spaces from numbers like "9 039"
-                            bitrate_str = bitrate_str.replace(' ', '')
-                            match = re.search(r'([\d.]+)(Mb|Gb|Kb|b)/s', bitrate_str, re.IGNORECASE)
-                            if match:
-                                value = float(match.group(1))
-                                unit = match.group(2).lower()
-                                if unit == 'gb':
-                                    return int(value * 1000000)
-                                elif unit == 'mb':
-                                    return int(value * 1000)
-                                elif unit == 'kb':
-                                    return int(value)
-                                elif unit == 'b':
-                                    return int(value / 1000)
+                            result = parse_bitrate_string(bitrate_str)
+                            if result:
+                                return result
     except Exception as e:
         print(f"Error getting audio bitrate: {e}")
     return None
