@@ -307,11 +307,7 @@ function searchMedia() {
             
             // Insert after the table
             if (table && table.parentNode) {
-                if (table.nextSibling) {
-                    table.parentNode.insertBefore(noResultsMsg, table.nextSibling);
-                } else {
-                    table.parentNode.appendChild(noResultsMsg);
-                }
+                table.parentNode.insertBefore(noResultsMsg, table.nextSibling);
             }
         }
         noResultsMsg.style.display = 'block';
