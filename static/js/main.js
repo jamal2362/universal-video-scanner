@@ -631,7 +631,7 @@ function sortTableByAudioBitrate() {
     sortTableByNumericAttribute('data-audio-bitrate', true);
 }
 
-function sortTableByNumericAttribute(attribute, descending = false) {
+function sortTableByNumericAttribute(attribute, descending = true) {
     const table = document.getElementById('mediaTable');
     if (!table) return;
     const tbody = table.querySelector('tbody');
