@@ -1697,16 +1697,16 @@ def scan_video_file(file_path):
     if IMAGE_SOURCE == 'fanart':
         # Use Fanart.tv for poster
         tmdb_id, poster_url = get_fanart_poster(filename)
-        # Fetch title and year from TMDB if we have a TMDB ID and API key
+        # Fetch title, year and rating from TMDB if we have a TMDB ID and API key
         if tmdb_id and TMDB_API_KEY:
-            print(f"  [TMDB] Fetching title/year for Fanart.tv poster...")
-            # Try movie first
-            tmdb_title, tmdb_year = get_tmdb_title_and_year_by_id(tmdb_id, 'movie')
+            print(f"  [TMDB] Fetching title/year/rating for Fanart.tv poster...")
+            # Try movie first - use get_tmdb_poster_by_id to get rating too
+            _, tmdb_title, tmdb_year, tmdb_rating = get_tmdb_poster_by_id(tmdb_id, 'movie')
             if not tmdb_title:
                 # Try TV show
-                tmdb_title, tmdb_year = get_tmdb_title_and_year_by_id(tmdb_id, 'tv')
+                _, tmdb_title, tmdb_year, tmdb_rating = get_tmdb_poster_by_id(tmdb_id, 'tv')
             if tmdb_title:
-                print(f"  [TMDB] Title/year found: {tmdb_title} ({tmdb_year})")
+                print(f"  [TMDB] Title/year/rating found: {tmdb_title} ({tmdb_year}) - Rating: {tmdb_rating}")
     else:
         # Use TMDB (default)
         tmdb_id, poster_url, tmdb_title, tmdb_year, tmdb_rating = get_tmdb_poster(filename)
