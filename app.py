@@ -32,7 +32,6 @@ TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
 FANART_API_KEY = os.environ.get('FANART_API_KEY', '')
 IMAGE_SOURCE = os.environ.get('IMAGE_SOURCE', 'tmdb').lower()
 CONTENT_LANGUAGE = os.environ.get('CONTENT_LANGUAGE', 'en').lower()
-FAVICON_FILENAME = 'favicon.ico'
 
 # Language code mapping from ISO 639-1 to various formats used by MediaInfo/ffprobe
 LANGUAGE_CODE_MAP = {
@@ -87,6 +86,7 @@ CSS_DIR = os.path.join(STATIC_DIR, 'css')
 JS_DIR = os.path.join(STATIC_DIR, 'js')
 LOCALE_DIR = os.path.join(STATIC_DIR, 'locale')
 FONTS_DIR = os.path.join(STATIC_DIR, 'fonts')
+FAVICON_FILENAME = 'favicon.ico'
 
 # GitHub raw URLs for downloading static files
 GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/U3knOwn/universal-video-scanner/main'
@@ -2027,7 +2027,7 @@ def favicon():
         favicon_path = os.path.join(app_dir, FAVICON_FILENAME)
         
         # Verify the resolved path is still within app directory (prevent path traversal)
-        if not os.path.abspath(favicon_path).startswith(app_dir):
+        if not os.path.abspath(favicon_path).startswith(os.path.abspath(app_dir)):
             print(f"Path traversal attempt detected in favicon route")
             return "Invalid path", 400
         
