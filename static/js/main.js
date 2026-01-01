@@ -779,7 +779,6 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     const dialogTmdbLink = document.getElementById('dialogTmdbLink');
     const dialogPlot = document.getElementById('dialogPlot');
     const dialogPlotText = document.getElementById('dialogPlotText');
-    const dialogCredits = document.getElementById('dialogCredits');
     const dialogDirectors = document.getElementById('dialogDirectors');
     const dialogDirectorsText = document.getElementById('dialogDirectorsText');
     const dialogCast = document.getElementById('dialogCast');
@@ -803,7 +802,7 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     // Set plot if available
     if (plot && plot !== '') {
         dialogPlotText.textContent = plot;
-        dialogPlot.style.display = 'block';
+        dialogPlot.style.display = 'flex';
     } else {
         dialogPlot.style.display = 'none';
     }
@@ -811,24 +810,17 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     // Set directors if available
     if (directors && directors !== '') {
         dialogDirectorsText.textContent = directors;
-        dialogDirectors.style.display = 'block';
+        dialogDirectors.style.display = 'flex';
     } else {
         dialogDirectors.style.display = 'none';
     }
     
-    // Set cast if available
+    // Set cast if available (with "..." to indicate more actors)
     if (cast && cast !== '') {
-        dialogCastText.textContent = cast;
-        dialogCast.style.display = 'block';
+        dialogCastText.textContent = cast + ' ...';
+        dialogCast.style.display = 'flex';
     } else {
         dialogCast.style.display = 'none';
-    }
-    
-    // Show credits container if directors or cast are available
-    if ((directors && directors !== '') || (cast && cast !== '')) {
-        dialogCredits.style.display = 'block';
-    } else {
-        dialogCredits.style.display = 'none';
     }
     
     // Set duration

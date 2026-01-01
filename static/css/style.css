@@ -594,48 +594,12 @@ tbody tr:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.dialog-plot {
-    margin-bottom: 20px;
-    padding: 15px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
-    border-left: 3px solid #4ecca3;
-}
-
 .dialog-plot-text {
     color: #c2c2c2;
     line-height: 1.6;
-    text-align: left;
+    text-align: center;
     font-size: 0.95em;
-}
-
-.dialog-credits {
-    margin-bottom: 20px;
-    padding: 15px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
-    border-left: 3px solid #4ecca3;
-}
-
-.dialog-directors,
-.dialog-cast {
-    margin-bottom: 10px;
-}
-
-.dialog-directors:last-child,
-.dialog-cast:last-child {
-    margin-bottom: 0;
-}
-
-.dialog-credits-label {
-    color: #4ecca3;
-    font-weight: 600;
-    margin-right: 8px;
-}
-
-.dialog-credits-value {
-    color: #e0e0e0;
-    line-height: 1.5;
+    font-weight: normal;
 }
 
 .dialog-info {
