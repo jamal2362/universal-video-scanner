@@ -23,7 +23,7 @@ except ImportError:
     print("Warning: 'requests' module not available. TMDB integration disabled.")
 
 # Configuration
-MEDIA_PATH = os.environ.get('MEDIA_PATH', '/media')
+MEDIA_PATH = '/media'
 DATA_DIR = '/app/data'
 TEMP_DIR = '/app/temp'
 DB_FILE = os.path.join(DATA_DIR, 'scanned_files.json')

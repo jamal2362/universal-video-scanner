@@ -119,7 +119,6 @@ DoVi-Detector/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MEDIA_PATH` | `/media` | Path to media directory |
 | `FILE_WRITE_DELAY` | `5` | Wait time in seconds after file creation before scanning |
 | `AUTO_REFRESH_INTERVAL` | `60` | Auto-refresh interval of web UI in seconds |
 | `TMDB_API_KEY` | `` | TMDB API key for fetching movie posters (optional) |
@@ -320,7 +319,6 @@ pip3 install -r requirements.txt
 # ffmpeg and dovi_tool must be installed manually
 
 # Start app
-export MEDIA_PATH=/path/to/media
 python3 app.py
 ```
 
