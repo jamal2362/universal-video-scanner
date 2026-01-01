@@ -92,6 +92,8 @@
                              data-poster-url="{{ file.poster_url|default('') }}"
                              data-tmdb-id="{{ file.tmdb_id|default('') }}"
                              data-plot="{{ file.tmdb_plot|default('') }}"
+                             data-directors="{{ file.tmdb_directors|default([])|join(', ') }}"
+                             data-cast="{{ file.tmdb_cast|default([])|join(', ') }}"
                              onclick="showMediaDialogFromData(this)">
                             {% if file.tmdb_title %}
                             <span class="poster-title">
@@ -119,6 +121,8 @@
                               data-poster-url="{{ file.poster_url|default('') }}"
                               data-tmdb-id="{{ file.tmdb_id|default('') }}"
                               data-plot="{{ file.tmdb_plot|default('') }}"
+                              data-directors="{{ file.tmdb_directors|default([])|join(', ') }}"
+                              data-cast="{{ file.tmdb_cast|default([])|join(', ') }}"
                               onclick="showMediaDialogFromData(this)">{{ file.filename }}</span>
                         {% endif %}
                     </td>
@@ -230,6 +234,16 @@
             </div>
             <div class="dialog-plot" id="dialogPlot" style="display: none;">
                 <p class="dialog-plot-text" id="dialogPlotText"></p>
+            </div>
+            <div class="dialog-credits" id="dialogCredits" style="display: none;">
+                <div class="dialog-directors" id="dialogDirectors" style="display: none;">
+                    <span class="dialog-credits-label" data-i18n="dialog_directors"></span>
+                    <span class="dialog-credits-value" id="dialogDirectorsText"></span>
+                </div>
+                <div class="dialog-cast" id="dialogCast" style="display: none;">
+                    <span class="dialog-credits-label" data-i18n="dialog_cast"></span>
+                    <span class="dialog-credits-value" id="dialogCastText"></span>
+                </div>
             </div>
             <div class="dialog-info">
                 <div class="dialog-info-item">

@@ -31,5 +31,7 @@
   "dialog_video_bitrate": "Video Bitrate:",
   "dialog_audio_bitrate": "Audio Bitrate:",
   "dialog_plot": "Plot:",
-  "dialog_links": "Link:"
+  "dialog_links": "Link:",
+  "dialog_directors": "Directors:",
+  "dialog_cast": "Cast:"
 }

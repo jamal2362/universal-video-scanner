@@ -503,6 +503,57 @@ def get_tmdb_poster(filename):
     return None, None, None, None, None, None
 
 
+def get_tmdb_credits(tmdb_id, media_type='movie'):
+    """Fetch directors and cast from TMDB API by ID. Returns (directors_list, cast_list)"""
+    if not TMDB_API_KEY or not REQUESTS_AVAILABLE:
+        return [], []
+    
+    # Validate tmdb_id is numeric
+    if not tmdb_id or not isinstance(tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
+        print(f"Invalid TMDB ID for credits: {tmdb_id}")
+        return [], []
+    
+    try:
+        url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}/credits'
+        params = {'api_key': TMDB_API_KEY}
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Extract directors from crew (limit to 3)
+            directors = []
+            crew = data.get('crew', [])
+            for member in crew:
+                if member.get('job') == 'Director':
+                    name = member.get('name', '').strip()
+                    if name:  # Only add non-empty names
+                        directors.append(name)
+                        if len(directors) >= 3:
+                            break
+            
+            # Extract cast (limit to 10)
+            cast = []
+            cast_list = data.get('cast', [])
+            for actor in cast_list[:10]:
+                name = actor.get('name', '').strip()
+                if name:  # Only add non-empty names
+                    cast.append(name)
+            
+            return directors, cast
+        
+        if response.status_code not in [200, 404]:
+            print(f"TMDB credits API error for ID {tmdb_id}: HTTP {response.status_code}")
+    except requests.exceptions.Timeout:
+        print(f"TMDB credits API timeout for ID {tmdb_id}")
+    except requests.exceptions.RequestException as e:
+        print(f"TMDB credits API request error for ID {tmdb_id}: {e}")
+    except Exception as e:
+        print(f"Error fetching TMDB credits for ID {tmdb_id}: {e}")
+    
+    return [], []
+
+
 def is_valid_tmdb_url(url):
     """Validate URL is from TMDB to prevent SSRF attacks"""
     if not url:
@@ -1730,6 +1781,19 @@ def scan_video_file(file_path):
     if poster_url:
         cached_backdrop_path = get_cached_backdrop_path(tmdb_id, poster_url)
 
+    # Get credits (directors and cast) if we have a TMDB ID
+    tmdb_directors = []
+    tmdb_cast = []
+    if tmdb_id and TMDB_API_KEY:
+        print(f"  [TMDB] Fetching credits for TMDB ID: {tmdb_id}")
+        # Try movie first
+        tmdb_directors, tmdb_cast = get_tmdb_credits(tmdb_id, 'movie')
+        if not tmdb_directors and not tmdb_cast:
+            # Try TV show
+            tmdb_directors, tmdb_cast = get_tmdb_credits(tmdb_id, 'tv')
+        if tmdb_directors or tmdb_cast:
+            print(f"  [TMDB] Credits found - Directors: {len(tmdb_directors)}, Cast: {len(tmdb_cast)}")
+
     file_info = {
         'filename': filename,
         'path': file_path,
@@ -1745,6 +1809,8 @@ def scan_video_file(file_path):
         'tmdb_year': tmdb_year,
         'tmdb_rating': tmdb_rating,
         'tmdb_plot': tmdb_plot,
+        'tmdb_directors': tmdb_directors,
+        'tmdb_cast': tmdb_cast,
         'duration': duration,
         'video_bitrate': video_bitrate,
         'audio_bitrate': audio_bitrate,
