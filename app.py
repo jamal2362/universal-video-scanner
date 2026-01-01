@@ -100,6 +100,7 @@ GITHUB_FILES = {
     'static/fonts/Inter-Medium.woff2': os.path.join(FONTS_DIR, 'Inter-Medium.woff2'),
     'static/fonts/Inter-SemiBold.woff2': os.path.join(FONTS_DIR, 'Inter-SemiBold.woff2'),
     'static/fonts/Inter-Bold.woff2': os.path.join(FONTS_DIR, 'Inter-Bold.woff2'),
+    'static/favicon.ico': os.path.join(STATIC_DIR, 'favicon.ico'),
 }
 
 app = Flask(__name__,
