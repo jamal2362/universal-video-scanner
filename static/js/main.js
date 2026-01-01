@@ -624,5 +624,154 @@ document.addEventListener('DOMContentLoaded', function() {
         if (searchInput) {
             searchInput.addEventListener('input', searchMedia);
         }
+        
+        // Listener for Escape key to close dialog
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const overlay = document.getElementById('mediaDialogOverlay');
+                if (overlay && overlay.classList.contains('active')) {
+                    closeMediaDialog();
+                }
+            }
+        });
     });
 });
+
+/* -------------------------------
+   Media Details Dialog Functions
+   ------------------------------- */
+
+function formatDuration(seconds) {
+    if (!seconds || seconds <= 0) return 'Unknown';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else {
+        const secs = Math.floor(seconds % 60);
+        return `${minutes}m ${secs}s`;
+    }
+}
+
+function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, tmdbId) {
+    const overlay = document.getElementById('mediaDialogOverlay');
+    const dialogTitle = document.getElementById('dialogTitle');
+    const dialogDuration = document.getElementById('dialogDuration');
+    const dialogVideoBitrate = document.getElementById('dialogVideoBitrate');
+    const dialogAudioBitrate = document.getElementById('dialogAudioBitrate');
+    const dialogImdbLink = document.getElementById('dialogImdbLink');
+    const dialogTmdbLink = document.getElementById('dialogTmdbLink');
+    
+    // Set title with year if available
+    if (year && year !== '') {
+        dialogTitle.textContent = `${title} (${year})`;
+    } else {
+        dialogTitle.textContent = title;
+    }
+    
+    // Set duration
+    dialogDuration.textContent = formatDuration(duration);
+    
+    // Set video bitrate
+    if (videoBitrate && videoBitrate > 0) {
+        dialogVideoBitrate.textContent = `${videoBitrate} kbit/s`;
+    } else {
+        dialogVideoBitrate.textContent = 'Unknown';
+    }
+    
+    // Set audio bitrate
+    if (audioBitrate && audioBitrate > 0) {
+        dialogAudioBitrate.textContent = `${audioBitrate} kbit/s`;
+    } else {
+        dialogAudioBitrate.textContent = 'Unknown';
+    }
+    
+    // Set up links
+    if (tmdbId && tmdbId !== '') {
+        // TMDb link - direct to movie page
+        dialogTmdbLink.href = `https://www.themoviedb.org/movie/${tmdbId}`;
+        dialogTmdbLink.style.display = 'inline-block';
+        
+        // IMDb link - via TMDb external IDs page (which provides IMDb link)
+        // This is used because we don't have direct IMDb ID, only TMDb ID
+        dialogImdbLink.href = `https://www.themoviedb.org/movie/${tmdbId}/external_ids`;
+        dialogImdbLink.style.display = 'inline-block';
+    } else {
+        // Hide links if no TMDb ID
+        dialogTmdbLink.style.display = 'none';
+        dialogImdbLink.style.display = 'none';
+    }
+    
+    // Show dialog
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    // Apply translations
+    applyTranslations();
+    
+    // Setup swipe gesture for mobile (only once)
+    if (!swipeListenersAttached) {
+        setupSwipeToClose();
+    }
+}
+
+function showMediaDialogFromData(element) {
+    // Extract data attributes safely from the clicked element
+    const title = element.getAttribute('data-title') || '';
+    const year = element.getAttribute('data-year') || '';
+    const duration = parseFloat(element.getAttribute('data-duration')) || null;
+    const videoBitrate = parseInt(element.getAttribute('data-video-bitrate')) || null;
+    const audioBitrate = parseInt(element.getAttribute('data-audio-bitrate')) || null;
+    const tmdbId = element.getAttribute('data-tmdb-id') || '';
+    
+    showMediaDialog(title, year, duration, videoBitrate, audioBitrate, tmdbId);
+}
+
+function closeMediaDialog(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    
+    const overlay = document.getElementById('mediaDialogOverlay');
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// Swipe gesture handling for mobile
+let touchStartX = 0;
+let touchStartY = 0;
+let touchEndX = 0;
+let touchEndY = 0;
+let swipeListenersAttached = false;
+
+function setupSwipeToClose() {
+    const dialog = document.querySelector('.media-dialog');
+    
+    if (!dialog || swipeListenersAttached) return;
+    
+    dialog.addEventListener('touchstart', function(e) {
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+    
+    dialog.addEventListener('touchend', function(e) {
+        touchEndX = e.changedTouches[0].screenX;
+        touchEndY = e.changedTouches[0].screenY;
+        handleSwipe();
+    }, { passive: true });
+    
+    swipeListenersAttached = true;
+}
+
+function handleSwipe() {
+    const swipeThreshold = 100;
+    const horizontalSwipe = Math.abs(touchEndX - touchStartX);
+    const verticalSwipe = Math.abs(touchEndY - touchStartY);
+    
+    // Only consider horizontal swipes (left or right)
+    if (horizontalSwipe > swipeThreshold && horizontalSwipe > verticalSwipe) {
+        closeMediaDialog();
+    }
+}

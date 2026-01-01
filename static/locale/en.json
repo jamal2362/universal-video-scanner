@@ -20,5 +20,9 @@
   "scan_error": "Error while scanning",
   "file_scan_error": "Error while scanning file",
   "search_placeholder": "🔍 Search...",
-  "unknown": "Unknown"
+  "unknown": "Unknown",
+  "dialog_duration": "Duration:",
+  "dialog_video_bitrate": "Video Bitrate:",
+  "dialog_audio_bitrate": "Audio Bitrate:",
+  "dialog_links": "Links:"
 }

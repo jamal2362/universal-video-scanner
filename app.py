@@ -1155,10 +1155,123 @@ def get_audio_info_mediainfo(video_file):
     return None
 
 
+def get_video_duration(video_file):
+    """Get video duration in seconds using ffprobe"""
+    try:
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'json',
+            video_file
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if 'format' in data and 'duration' in data['format']:
+                duration = float(data['format']['duration'])
+                return duration
+    except Exception as e:
+        print(f"Error getting video duration: {e}")
+    return None
+
+
+def get_video_bitrate(video_file):
+    """Get video bitrate in kbit/s using ffprobe"""
+    try:
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=bit_rate',
+            '-of', 'json',
+            video_file
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if 'streams' in data and len(data['streams']) > 0:
+                stream = data['streams'][0]
+                bit_rate = stream.get('bit_rate')
+                if bit_rate:
+                    # Convert from bit/s to kbit/s
+                    return int(int(bit_rate) / 1000)
+    except Exception as e:
+        print(f"Error getting video bitrate: {e}")
+    return None
+
+
+def get_audio_bitrate(video_file):
+    """Get audio bitrate in kbit/s for the preferred language track using ffprobe"""
+    # Get language codes for the configured language and English fallback
+    preferred_lang_codes = LANGUAGE_CODE_MAP.get(CONTENT_LANGUAGE, [CONTENT_LANGUAGE.lower()])
+    english_lang_codes = LANGUAGE_CODE_MAP.get('en', ['eng', 'en', 'english'])
+    
+    try:
+        cmd = [
+            'ffprobe',
+            '-v',
+            'error',
+            '-select_streams',
+            'a',
+            '-show_entries',
+            'stream=index,bit_rate:stream_tags=language',
+            '-of',
+            'json',
+            video_file]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if 'streams' in data and len(data['streams']) > 0:
+                # Try to find preferred language audio track first, then English, then first track
+                preferred_stream = None
+                english_stream = None
+                first_stream = None
+
+                for stream in data['streams']:
+                    tags = stream.get('tags', {})
+                    language = tags.get('language', '').lower()
+
+                    if first_stream is None:
+                        first_stream = stream
+
+                    if language in preferred_lang_codes:
+                        preferred_stream = stream
+                        # If preferred language is English, also set english_stream
+                        if language in english_lang_codes:
+                            english_stream = stream
+                        break
+                    
+                    if english_stream is None and language in english_lang_codes:
+                        english_stream = stream
+
+                # Use preferred language track if found, otherwise English, otherwise first track
+                selected_stream = preferred_stream if preferred_stream else (english_stream if english_stream else first_stream)
+
+                if selected_stream:
+                    bit_rate = selected_stream.get('bit_rate')
+                    if bit_rate:
+                        # Convert from bit/s to kbit/s
+                        return int(int(bit_rate) / 1000)
+    except Exception as e:
+        print(f"Error getting audio bitrate: {e}")
+    return None
+
+
 def get_audio_codec(video_file):
     """Get audio codec with detailed profile info, preferring configured language tracks"""
     # Get language codes for the configured language and English fallback
-    preferred_lang_codes = LANGUAGE_CODE_MAP.get(CONTENT_LANGUAGE, [CONTENT_LANGUAGE])
+    preferred_lang_codes = LANGUAGE_CODE_MAP.get(CONTENT_LANGUAGE, [CONTENT_LANGUAGE.lower()])
     english_lang_codes = LANGUAGE_CODE_MAP.get('en', ['eng', 'en', 'english'])
     
     # Try MediaInfo first for better format detection (especially Atmos and
@@ -1381,6 +1494,11 @@ def scan_video_file(file_path):
     hdr_info = detect_hdr_format(file_path)
     resolution = get_video_resolution(file_path)
     audio_codec = get_audio_codec(file_path)
+    
+    # Get additional metadata for media details dialog
+    duration = get_video_duration(file_path)
+    video_bitrate = get_video_bitrate(file_path)
+    audio_bitrate = get_audio_bitrate(file_path)
 
     # Get poster, title, and year based on IMAGE_SOURCE setting
     filename = os.path.basename(file_path)
@@ -1423,7 +1541,10 @@ def scan_video_file(file_path):
         'tmdb_id': tmdb_id,
         'poster_url': cached_backdrop_path if cached_backdrop_path else poster_url,
         'tmdb_title': tmdb_title,
-        'tmdb_year': tmdb_year
+        'tmdb_year': tmdb_year,
+        'duration': duration,
+        'video_bitrate': video_bitrate,
+        'audio_bitrate': audio_bitrate
     }
 
     with scan_lock:

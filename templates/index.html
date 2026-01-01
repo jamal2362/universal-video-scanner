@@ -70,7 +70,14 @@
                 <tr data-hdr-format="{{ file.hdr_format }}" data-hdr-detail="{{ file.hdr_detail }}" data-el-type="{{ file.el_type or '' }}">
                     <td data-label-i18n="table_header_poster" data-label="Poster / Dateiname" title="{{ file.filename }}">
                         {% if file.poster_url %}
-                        <div class="poster-container">
+                        <div class="poster-container" 
+                             data-title="{{ file.tmdb_title|default(file.filename) }}" 
+                             data-year="{{ file.tmdb_year|default('') }}"
+                             data-duration="{{ file.duration|default('') }}"
+                             data-video-bitrate="{{ file.video_bitrate|default('') }}"
+                             data-audio-bitrate="{{ file.audio_bitrate|default('') }}"
+                             data-tmdb-id="{{ file.tmdb_id|default('') }}"
+                             onclick="showMediaDialogFromData(this)">
                             {% if file.tmdb_title %}
                             <span class="poster-title">
                                 {{ file.tmdb_title }}{% if file.tmdb_year %} ({{ file.tmdb_year }}){% endif %}
@@ -79,7 +86,14 @@
                             <img src="{{ file.poster_url }}" alt="{{ file.filename }}" class="poster-img" loading="lazy">
                         </div>
                         {% else %}
-                        <span class="filename-fallback">{{ file.filename }}</span>
+                        <span class="filename-fallback"
+                              data-title="{{ file.filename }}"
+                              data-year=""
+                              data-duration="{{ file.duration|default('') }}"
+                              data-video-bitrate="{{ file.video_bitrate|default('') }}"
+                              data-audio-bitrate="{{ file.audio_bitrate|default('') }}"
+                              data-tmdb-id="{{ file.tmdb_id|default('') }}"
+                              onclick="showMediaDialogFromData(this)">{{ file.filename }}</span>
                         {% endif %}
                     </td>
 
@@ -178,6 +192,35 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Media Details Dialog -->
+    <div class="media-dialog-overlay" id="mediaDialogOverlay" onclick="closeMediaDialog(event)" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+        <div class="media-dialog" onclick="event.stopPropagation()">
+            <button class="dialog-close" onclick="closeMediaDialog(event)" aria-label="Close dialog">&times;</button>
+            <h2 class="dialog-title" id="dialogTitle"></h2>
+            <div class="dialog-info">
+                <div class="dialog-info-item">
+                    <span class="dialog-label" data-i18n="dialog_duration"></span>
+                    <span class="dialog-value" id="dialogDuration"></span>
+                </div>
+                <div class="dialog-info-item">
+                    <span class="dialog-label" data-i18n="dialog_video_bitrate"></span>
+                    <span class="dialog-value" id="dialogVideoBitrate"></span>
+                </div>
+                <div class="dialog-info-item">
+                    <span class="dialog-label" data-i18n="dialog_audio_bitrate"></span>
+                    <span class="dialog-value" id="dialogAudioBitrate"></span>
+                </div>
+                <div class="dialog-info-item">
+                    <span class="dialog-label" data-i18n="dialog_links"></span>
+                    <div class="dialog-links">
+                        <a id="dialogImdbLink" class="dialog-link imdb" href="#" target="_blank" rel="noopener noreferrer">IMDb</a>
+                        <a id="dialogTmdbLink" class="dialog-link tmdb" href="#" target="_blank" rel="noopener noreferrer">TMDb</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
