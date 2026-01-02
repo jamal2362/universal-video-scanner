@@ -1,10 +1,13 @@
-name: Build / Export Docker Image
+name: Build & Release Docker Image
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build-and-export:
+  build-and-release:
     runs-on: ubuntu-latest
 
     steps:
@@ -14,16 +17,30 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build Docker image (versioned + latest)
         run: |
-          docker build -t universal-video-scanner:latest .
+          TAG=${GITHUB_RUN_NUMBER}
+          docker build -t universal-video-scanner:${TAG} .
+          docker tag universal-video-scanner:${TAG} universal-video-scanner:latest
 
       - name: Save Docker image as .tar
         run: |
-          docker save universal-video-scanner:latest -o universal-video-scanner.tar
+          docker save \
+            universal-video-scanner:${GITHUB_RUN_NUMBER} \
+            universal-video-scanner:latest \
+            -o universal-video-scanner.tar
 
-      - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: universal-video-scanner-image
-          path: universal-video-scanner.tar
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          body: |
+            Docker Image Release
+            Version: v${{ github.run_number }}
+
+      - name: Upload Docker image to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          files: universal-video-scanner.tar
