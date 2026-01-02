@@ -608,6 +608,7 @@ tbody tr:hover {
     display: inline-block;
 }
 
+/* Positioning override for TMDB badge in dialog - inherits styling from .tmdb-badge */
 .dialog-tmdb-badge {
     position: absolute;
     top: 8px;
