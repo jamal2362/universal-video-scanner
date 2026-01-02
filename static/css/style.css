@@ -962,7 +962,7 @@ tbody tr:hover {
     to { transform: rotate(360deg); }
 }
 
-@media screen and (max-width: 768px) {
+@media screen and (max-width: 850px) {
     body {
         padding: 10px;
     }
@@ -1105,6 +1105,47 @@ tbody tr:hover {
         padding-left: 0;
     }
 
+    .poster-container {
+        width:  100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .poster-img-wrapper {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+
+    .poster-img {
+        max-height: 95%;
+        max-width: 100%;
+        width: auto;
+    }
+
+    .hdr-badge,
+    .el-badge,
+    .resolution-badge,
+    .audio-badge {
+        width:  100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    td[data-label-i18n="table_header_hdr"],
+    td[data-label-i18n="table_header_resolution"],
+    td[data-label-i18n="table_header_audio"] {
+        text-align: center;
+        padding-left: 0;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
     td:first-child {
         padding-top: 0;
         padding-left: 0;
@@ -1119,30 +1160,11 @@ tbody tr:hover {
         padding-bottom: 20px;
     }
 
-    .poster-container {
-        width: 100%;
-        align-items: center;
-        gap: 15px;
-        margin-bottom: 15px;
-    }
-
     .poster-title {
         max-width: 100%;
         font-size: 1.1em;
     }
 
-    .poster-img {
-        max-height: 95%;
-        max-width: 100%;
-        width: auto;
-    }
-
-    .hdr-badge,
-    .el-badge,
-    .resolution-badge,
-    .audio-badge {
-        width: 90%;
-    }
 
     #searchInput,
     .search-container {
@@ -1188,35 +1210,4 @@ tbody tr:hover {
     .empty-state h2 {
         font-size: 1.2em;
     }
-}
-
-@media screen and (max-height: 768px) and (orientation: landscape) {
-    h1 {
-        font-size: 2em;
-    }
-
-    .subtitle {
-        font-size: 0.9em;
-    }
-
-    header {
-        padding: 10px;
-        margin-bottom: 15px;
-    }
-
-    .controls {
-        padding: 10px;
-		align-items: center;
-    }
-
-    table {
-        font-size: 0.9em;
-    }
-
-    .hdr-badge,
-    .el-badge,
-    .resolution-badge,
-    .audio-badge {
-    	width: 90%;
-	}
 }
