@@ -602,6 +602,18 @@ tbody tr:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/* Dialog Poster Wrapper for TMDB Badge */
+.dialog-poster-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.dialog-tmdb-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
 .dialog-plot-text {
     color: #ccc;
     line-height: 1.2;

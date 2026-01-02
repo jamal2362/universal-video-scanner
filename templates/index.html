@@ -94,6 +94,7 @@
                              data-file-size="{{ file.file_size|default('') }}"
                              data-poster-url="{{ file.poster_url|default('') }}"
                              data-tmdb-id="{{ file.tmdb_id|default('') }}"
+                             data-tmdb-rating="{{ file.tmdb_rating|default('') }}"
                              data-plot="{{ file.tmdb_plot|default('') }}"
                              data-directors="{{ file.tmdb_directors|default([])|join(', ') }}"
                              data-cast="{{ file.tmdb_cast|default([])|join(', ') }}"
@@ -123,6 +124,7 @@
                               data-file-size="{{ file.file_size|default('') }}"
                               data-poster-url="{{ file.poster_url|default('') }}"
                               data-tmdb-id="{{ file.tmdb_id|default('') }}"
+                              data-tmdb-rating="{{ file.tmdb_rating|default('') }}"
                               data-plot="{{ file.tmdb_plot|default('') }}"
                               data-directors="{{ file.tmdb_directors|default([])|join(', ') }}"
                               data-cast="{{ file.tmdb_cast|default([])|join(', ') }}"
@@ -233,7 +235,13 @@
             <button class="dialog-close" onclick="closeMediaDialog(event)" aria-label="Close dialog">&times;</button>
             <h2 class="dialog-title" id="dialogTitle"></h2>
             <div class="dialog-poster" id="dialogPoster" style="display: none;">
-                <img id="dialogPosterImg" class="dialog-poster-img" src="" alt="Poster">
+                <div class="dialog-poster-wrapper">
+                    <img id="dialogPosterImg" class="dialog-poster-img" src="" alt="Poster">
+                    <div class="tmdb-badge dialog-tmdb-badge" id="dialogTmdbBadge" style="display: none;">
+                        <span class="tmdb-logo">★</span>
+                        <span class="tmdb-rating" id="dialogTmdbRating"></span>
+                    </div>
+                </div>
             </div>
             <div class="dialog-info">
                 <div class="dialog-info-item" id="dialogPlot" style="display: none;">

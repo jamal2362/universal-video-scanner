@@ -958,7 +958,7 @@ function formatFileSize(bytes) {
     return `${formattedSize} GB`;
 }
 
-function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, fileSize, posterUrl, tmdbId, plot, directors, cast) {
+function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, fileSize, posterUrl, tmdbId, plot, directors, cast, tmdbRating) {
     const overlay = document.getElementById('mediaDialogOverlay');
     const dialogTitle = document.getElementById('dialogTitle');
     const dialogDuration = document.getElementById('dialogDuration');
@@ -967,6 +967,8 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     const dialogAudioBitrate = document.getElementById('dialogAudioBitrate');
     const dialogPoster = document.getElementById('dialogPoster');
     const dialogPosterImg = document.getElementById('dialogPosterImg');
+    const dialogTmdbBadge = document.getElementById('dialogTmdbBadge');
+    const dialogTmdbRatingElement = document.getElementById('dialogTmdbRating');
     const dialogTmdbLink = document.getElementById('dialogTmdbLink');
     const dialogTrailer = document.getElementById('dialogTrailer');
     const dialogTrailerLink = document.getElementById('dialogTrailerLink');
@@ -991,6 +993,14 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
         dialogPoster.style.display = 'block';
     } else {
         dialogPoster.style.display = 'none';
+    }
+    
+    // Set TMDB rating badge if available
+    if (tmdbRating && tmdbRating !== '' && tmdbRating !== 'None' && parseFloat(tmdbRating) > 0) {
+        dialogTmdbRatingElement.textContent = parseFloat(tmdbRating).toFixed(1);
+        dialogTmdbBadge.style.display = 'flex';
+    } else {
+        dialogTmdbBadge.style.display = 'none';
     }
     
     // Set plot if available, otherwise show fallback text
@@ -1101,11 +1111,12 @@ function showMediaDialogFromData(element) {
     const fileSize = parseInt(element.getAttribute('data-file-size')) || null;
     const posterUrl = element.getAttribute('data-poster-url') || '';
     const tmdbId = element.getAttribute('data-tmdb-id') || '';
+    const tmdbRating = element.getAttribute('data-tmdb-rating') || '';
     const plot = element.getAttribute('data-plot') || '';
     const directors = element.getAttribute('data-directors') || '';
     const cast = element.getAttribute('data-cast') || '';
     
-    showMediaDialog(title, year, duration, videoBitrate, audioBitrate, fileSize, posterUrl, tmdbId, plot, directors, cast);
+    showMediaDialog(title, year, duration, videoBitrate, audioBitrate, fileSize, posterUrl, tmdbId, plot, directors, cast, tmdbRating);
 }
 
 function closeMediaDialog(event) {
