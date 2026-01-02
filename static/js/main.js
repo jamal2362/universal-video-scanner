@@ -996,7 +996,6 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     }
     
     // Set TMDB rating badge if available
-    } else {
     if (dialogTmdbBadge && dialogTmdbRatingElement) {
         if (tmdbRating && tmdbRating !== '' && tmdbRating !== 'None' && parseFloat(tmdbRating) > 0) {
             dialogTmdbRatingElement.textContent = parseFloat(tmdbRating).toFixed(1);
