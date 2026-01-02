@@ -596,10 +596,10 @@ tbody tr:hover {
 
 .dialog-plot-text {
     color: #c2c2c2;
-    line-height: 1.6;
+    line-height: 1.2;
     text-align: center;
-    font-size: 0.95em;
-    font-weight: normal;
+    font-size: 1.1em;
+    font-weight: bold;
 }
 
 .dialog-info {
