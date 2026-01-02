@@ -9,10 +9,11 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import config
 
+
 class MediaFileHandler(FileSystemEventHandler):
     """Handle file system events for automatic scanning"""
 
-    def __init__(self, scan_video_file_func, scanned_files, scanned_paths, scan_lock, 
+    def __init__(self, scan_video_file_func, scanned_files, scanned_paths, scan_lock,
                  save_database_func, delete_cached_poster_func, deletion_event_queue=None):
         self.scan_video_file_func = scan_video_file_func
         self.scanned_files = scanned_files
@@ -50,15 +51,15 @@ class MediaFileHandler(FileSystemEventHandler):
             with self.scan_lock:
                 if file_path in self.scanned_files:
                     file_info = self.scanned_files[file_path]
-                    
+
                     # Delete cached poster if it exists
                     self.delete_cached_poster_func(file_info)
-                    
+
                     del self.scanned_files[file_path]
                     self.scanned_paths.discard(file_path)
                     self.save_database_func()
                     print(f"✗ Removed from database: {file_path}")
-                    
+
                     # Notify SSE clients about the deletion
                     if self.deletion_event_queue is not None:
                         try:
@@ -74,7 +75,7 @@ def start_file_observer(scan_video_file_func, scanned_files, scanned_paths, scan
         print(f"Creating media directory: {config.MEDIA_PATH}")
         os.makedirs(config.MEDIA_PATH, exist_ok=True)
 
-    event_handler = MediaFileHandler(scan_video_file_func, scanned_files, scanned_paths, 
+    event_handler = MediaFileHandler(scan_video_file_func, scanned_files, scanned_paths,
                                      scan_lock, save_database_func, delete_cached_poster_func,
                                      deletion_event_queue)
     observer = Observer()
@@ -82,4 +83,3 @@ def start_file_observer(scan_video_file_func, scanned_files, scanned_paths, scan
     observer.start()
     print(f"File observer started for: {config.MEDIA_PATH}")
     return observer
-

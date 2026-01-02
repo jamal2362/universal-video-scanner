@@ -62,7 +62,7 @@ def extract_title_and_year_from_tmdb(data, media_type):
 
     # Extract year (first 4 characters) from release date
     year = release_date[:4] if release_date and len(release_date) >= 4 else None
-    
+
     return title, year
 
 
@@ -78,28 +78,28 @@ def get_tmdb_title_and_year_by_id(tmdb_id, media_type, tmdb_api_key, content_lan
 
     try:
         url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
-        
+
         # Try configured language first
         params = {'api_key': tmdb_api_key, 'language': content_language}
         response = requests.get(url, params=params, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
             title, year = extract_title_and_year_from_tmdb(data, media_type)
             if title:
                 return title, year
-        
+
         # If configured language request failed, try English fallback
         if content_language != 'en' and response.status_code != 200:
             params = {'api_key': tmdb_api_key, 'language': 'en'}
             response = requests.get(url, params=params, timeout=10)
-            
+
             if response.status_code == 200:
                 data = response.json()
                 title, year = extract_title_and_year_from_tmdb(data, media_type)
                 if title:
                     return title, year
-        
+
         if response.status_code not in [200, 404]:
             print(f"TMDB API error for ID {tmdb_id}: HTTP {response.status_code}")
     except requests.exceptions.Timeout:
@@ -125,11 +125,11 @@ def get_tmdb_poster_by_id(tmdb_id, media_type, tmdb_api_key, content_language):
 
     try:
         url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
-        
+
         # Try configured language first
         params = {'api_key': tmdb_api_key, 'language': content_language}
         response = requests.get(url, params=params, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
             backdrop_path = data.get('backdrop_path')
@@ -140,23 +140,23 @@ def get_tmdb_poster_by_id(tmdb_id, media_type, tmdb_api_key, content_language):
                 title, year = extract_title_and_year_from_tmdb(data, media_type)
                 poster_url = f'https://image.tmdb.org/t/p/original{backdrop_path}'
                 return poster_url, title, year, rating, plot
-        
+
         # If configured language request failed or didn't have poster, try English fallback
         if content_language != 'en' and (response.status_code != 200 or not data.get('backdrop_path')):
             params = {'api_key': tmdb_api_key, 'language': 'en'}
             response = requests.get(url, params=params, timeout=10)
-            
+
             if response.status_code == 200:
                 data = response.json()
                 backdrop_path = data.get('backdrop_path')
                 rating = data.get('vote_average')
                 plot = data.get('overview', '')
-                
+
                 if backdrop_path:
                     title, year = extract_title_and_year_from_tmdb(data, media_type)
                     poster_url = f'https://image.tmdb.org/t/p/original{backdrop_path}'
                     return poster_url, title, year, rating, plot
-        
+
         if response.status_code not in [200, 404]:
             print(
                 f"TMDB API error for ID {tmdb_id}: HTTP "
@@ -188,7 +188,7 @@ def search_tmdb_poster(movie_name, media_type, tmdb_api_key, content_language):
 
     try:
         url = f'https://api.themoviedb.org/3/search/{media_type}'
-        
+
         # Try configured language first
         params = {
             'api_key': tmdb_api_key,
@@ -211,7 +211,7 @@ def search_tmdb_poster(movie_name, media_type, tmdb_api_key, content_language):
                     title, year = extract_title_and_year_from_tmdb(first_result, media_type)
                     poster_url = f'https://image.tmdb.org/t/p/original{backdrop_path}'
                     return poster_url, title, year, rating, plot
-        
+
         # If configured language search failed or returned no results with posters, try English fallback
         if content_language != 'en' and (response.status_code != 200 or not results or not results[0].get('backdrop_path')):
             params = {
@@ -219,7 +219,7 @@ def search_tmdb_poster(movie_name, media_type, tmdb_api_key, content_language):
                 'query': movie_name,
                 'language': 'en'
             }
-            
+
             response = requests.get(url, params=params, timeout=10)
             if response.status_code == 200:
                 data = response.json()
@@ -229,12 +229,12 @@ def search_tmdb_poster(movie_name, media_type, tmdb_api_key, content_language):
                     backdrop_path = first_result.get('backdrop_path')
                     rating = first_result.get('vote_average')
                     plot = first_result.get('overview', '')
-                    
+
                     if backdrop_path:
                         title, year = extract_title_and_year_from_tmdb(first_result, media_type)
                         poster_url = f'https://image.tmdb.org/t/p/original{backdrop_path}'
                         return poster_url, title, year, rating, plot
-        
+
         if response.status_code not in [200, 404]:
             print(
                 f"TMDB API search error for '{movie_name}': HTTP "
@@ -292,20 +292,20 @@ def get_tmdb_credits(tmdb_id, media_type, tmdb_api_key):
     """Fetch directors and cast from TMDB API by ID. Returns (directors_list, cast_list)"""
     if not tmdb_api_key or not REQUESTS_AVAILABLE:
         return [], []
-    
+
     # Validate tmdb_id is numeric
     if not tmdb_id or not isinstance(tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
         print(f"Invalid TMDB ID for credits: {tmdb_id}")
         return [], []
-    
+
     try:
         url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}/credits'
         params = {'api_key': tmdb_api_key}
         response = requests.get(url, params=params, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
-            
+
             # Extract directors from crew (limit to 3)
             directors = []
             crew = data.get('crew', [])
@@ -316,7 +316,7 @@ def get_tmdb_credits(tmdb_id, media_type, tmdb_api_key):
                         directors.append(name)
                         if len(directors) >= 3:
                             break
-            
+
             # Extract cast (limit to 10)
             cast = []
             cast_list = data.get('cast', [])
@@ -324,9 +324,9 @@ def get_tmdb_credits(tmdb_id, media_type, tmdb_api_key):
                 name = actor.get('name', '').strip()
                 if name:  # Only add non-empty names
                     cast.append(name)
-            
+
             return directors, cast
-        
+
         if response.status_code not in [200, 404]:
             print(f"TMDB credits API error for ID {tmdb_id}: HTTP {response.status_code}")
     except requests.exceptions.Timeout:
@@ -335,7 +335,7 @@ def get_tmdb_credits(tmdb_id, media_type, tmdb_api_key):
         print(f"TMDB credits API request error for ID {tmdb_id}: {e}")
     except Exception as e:
         print(f"Error fetching TMDB credits for ID {tmdb_id}: {e}")
-    
+
     return [], []
 
 

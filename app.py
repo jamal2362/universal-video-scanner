@@ -77,8 +77,6 @@ def index():
 def manual_scan():
     """Endpoint for manual scan trigger"""
     try:
-        initial_count = len(database.scanned_files)
-
         # Clean up database for non-existent files
         removed_count = database.cleanup_database(config.DB_FILE, _delete_cached_poster_wrapper)
 
@@ -147,7 +145,7 @@ def scan_single_file():
     try:
         # Get user's preferred language
         lang = get_request_language(request)
-        
+
         data = request.get_json()
         file_path = data.get('file_path')
 
@@ -223,7 +221,7 @@ def events():
         # Send a keep-alive comment every 30 seconds
         import time
         last_keepalive = time.time()
-        
+
         while True:
             try:
                 # Check for deletion events (non-blocking with timeout)
@@ -238,7 +236,7 @@ def events():
                         last_keepalive = current_time
             except GeneratorExit:
                 break
-    
+
     return Response(event_stream(), mimetype='text/event-stream')
 
 

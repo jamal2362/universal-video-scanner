@@ -3,11 +3,10 @@ Configuration module for Universal Video Scanner
 Contains all environment variables, constants, and configuration settings
 """
 import os
-import re
 
 # Check if requests module is available
 try:
-    import requests
+    import requests  # noqa: F401
     REQUESTS_AVAILABLE = True
 except ImportError:
     REQUESTS_AVAILABLE = False

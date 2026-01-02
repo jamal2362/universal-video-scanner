@@ -55,7 +55,7 @@ def download_and_cache_poster(poster_url, cache_filename, poster_cache_dir):
             print(f"  [CACHE] Poster cached: {cache_filename}")
             return f'/poster/{cache_filename}'
     except requests.exceptions.Timeout:
-        print(f"  [CACHE] Timeout downloading poster")
+        print("  [CACHE] Timeout downloading poster")
     except requests.exceptions.RequestException as e:
         print(f"  [CACHE] Error downloading poster: {e}")
     except Exception as e:

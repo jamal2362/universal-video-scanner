@@ -49,15 +49,15 @@ def get_fanart_poster_by_id(tmdb_id, media_type, fanart_api_key, content_languag
         else:  # TV show - Note: Fanart.tv uses TVDB ID for TV shows, not TMDB
             # For TV shows, we would need TVDB ID, which we don't have
             # So we'll return None for TV shows
-            print(f"  [FANART] TV shows not supported (requires TVDB ID)")
+            print("  [FANART] TV shows not supported (requires TVDB ID)")
             return None
-        
+
         params = {'api_key': fanart_api_key}
         response = requests.get(url, params=params, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
-            
+
             # Get moviethumb for movies
             if media_type == 'movie':
                 thumbs = data.get('moviethumb', [])
@@ -68,7 +68,7 @@ def get_fanart_poster_by_id(tmdb_id, media_type, fanart_api_key, content_languag
                             return int(thumb.get('likes', 0))
                         except (ValueError, TypeError):
                             return 0
-                    
+
                     # Filter by preferred language first
                     preferred_thumbs = [t for t in thumbs if t.get('lang', '').lower() == content_language]
                     if preferred_thumbs:
@@ -77,7 +77,7 @@ def get_fanart_poster_by_id(tmdb_id, media_type, fanart_api_key, content_languag
                         if thumb_url:
                             print(f"  [FANART] Thumb poster found in {content_language}: {thumb_url}")
                             return thumb_url
-                    
+
                     # Fallback to English if no images in preferred language
                     if content_language != 'en':
                         en_thumbs = [t for t in thumbs if t.get('lang', '').lower() == 'en']
@@ -87,14 +87,14 @@ def get_fanart_poster_by_id(tmdb_id, media_type, fanart_api_key, content_languag
                             if thumb_url:
                                 print(f"  [FANART] Thumb poster found in en (fallback): {thumb_url}")
                                 return thumb_url
-                    
+
                     # Final fallback: all images sorted by likes
                     thumbs_sorted = sorted(thumbs, key=get_likes, reverse=True)
                     thumb_url = thumbs_sorted[0].get('url')
                     if thumb_url:
                         print(f"  [FANART] Thumb poster found (any language): {thumb_url}")
                         return thumb_url
-        
+
         if response.status_code not in [200, 404]:
             print(
                 f"Fanart.tv API error for ID {tmdb_id}: HTTP "

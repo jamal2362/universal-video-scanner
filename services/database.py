@@ -41,8 +41,6 @@ def save_database(db_file):
 
 def cleanup_database(db_file, delete_cached_poster_func):
     """Remove entries from database for files that no longer exist"""
-    global scanned_files, scanned_paths
-
     removed_count = 0
     paths_to_remove = []
 
@@ -61,10 +59,10 @@ def cleanup_database(db_file, delete_cached_poster_func):
             for file_path in paths_to_remove:
                 if file_path in scanned_files:  # Check if still exists in case another thread already removed it
                     file_info = scanned_files[file_path]
-                    
+
                     # Delete cached poster if it exists
                     delete_cached_poster_func(file_info)
-                    
+
                     del scanned_files[file_path]
                     scanned_paths.discard(file_path)
                     removed_count += 1

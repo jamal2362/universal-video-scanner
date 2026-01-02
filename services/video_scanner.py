@@ -9,6 +9,7 @@ import tempfile
 from utils.media_utils import get_channel_format, parse_bitrate_string
 import config
 
+
 def extract_dovi_metadata(video_file):
     """
     Extract Dolby Vision metadata using ffmpeg pipe + dovi_tool JSON output
@@ -40,7 +41,7 @@ def extract_dovi_metadata(video_file):
             rpu_path = rpu_tmp.name
 
         # Extract RPU metadata
-        dovi_extract = subprocess.run(
+        subprocess.run(
             ['dovi_tool', 'extract-rpu', '-', '-o', rpu_path],
             stdin=ffmpeg_proc.stdout,
             capture_output=True,
@@ -236,7 +237,7 @@ def detect_hdr_format(video_file):
                     'smpte st 2094',
                     'smpte2094',
                     'smpte-st-2094']):
-                print(f"  -> HDR10+ detected (fallback text search)")
+                print("  -> HDR10+ detected (fallback text search)")
                 return {
                     'format': 'HDR10+',
                     'detail': 'HDR10+',
@@ -342,27 +343,6 @@ def get_video_resolution(video_file):
     return "Unknown"
 
 
-def get_channel_format(channels):
-    """Convert channel count to standard format string"""
-    try:
-        channels = int(channels)
-        channel_map = {
-            1: "1.0",
-            2: "2.0",
-            3: "2.1",
-            4: "3.1",
-            5: "4.1",
-            6: "5.1",
-            7: "6.1",
-            8: "7.1",
-            9: "8.1",
-            10: "9.1"
-        }
-        return channel_map.get(channels, f"{channels}.0")
-    except (ValueError, TypeError):
-        return ""
-
-
 def get_audio_info_mediainfo(video_file):
     """Get audio information using MediaInfo"""
     try:
@@ -408,50 +388,6 @@ def get_video_duration(video_file):
     return None
 
 
-def parse_bitrate_string(bitrate_str):
-    """
-    Parse bitrate string from MediaInfo and convert to kbit/s.
-    
-    Handles formats like:
-    - "55.3 Mb/s" -> 55300 kbit/s
-    - "9 039 kb/s" -> 9039 kbit/s
-    - "1.5 Gb/s" -> 1500000 kbit/s
-    
-    Args:
-        bitrate_str: String representation of bitrate (e.g., "55.3 Mb/s")
-        
-    Returns:
-        int: Bitrate in kbit/s, or None if parsing fails
-    """
-    if not bitrate_str:
-        return None
-    
-    try:
-        # Remove spaces from numbers like "9 039" -> "9039"
-        bitrate_str_clean = bitrate_str.replace(' ', '')
-        
-        # Match patterns like "55.3Mb/s", "9039kb/s", etc.
-        match = re.search(r'([\d.]+)(Mb|Gb|Kb|b)/s', bitrate_str_clean, re.IGNORECASE)
-        if match:
-            value = float(match.group(1))
-            unit = match.group(2).lower()
-            
-            # Convert to kbit/s
-            if unit == 'gb':
-                return int(value * 1000000)
-            elif unit == 'mb':
-                return int(value * 1000)
-            elif unit == 'kb':
-                return int(value)
-            elif unit == 'b':
-                return int(value / 1000)
-    except (ValueError, AttributeError):
-        pass
-    
-    return None
-
-
-
 def get_video_bitrate(video_file):
     """Get video bitrate in kbit/s using ffprobe with multiple fallback mechanisms"""
     try:
@@ -472,20 +408,20 @@ def get_video_bitrate(video_file):
             data = json.loads(result.stdout)
             if 'streams' in data and len(data['streams']) > 0:
                 stream = data['streams'][0]
-                
+
                 # Primary: Try BPS from stream tags (MKV containers)
                 tags = stream.get('tags', {})
                 bps = tags.get('BPS')
                 if bps:
                     # BPS is in bit/s, convert to kbit/s
                     return int(int(bps) / 1000)
-                
+
                 # Fallback 1: Try bit_rate field (MP4 and other containers)
                 bit_rate = stream.get('bit_rate')
                 if bit_rate:
                     # bit_rate is in bit/s, convert to kbit/s
                     return int(int(bit_rate) / 1000)
-        
+
         # Fallback 2: Try format-level bitrate
         cmd = [
             'ffprobe', '-v', 'error',
@@ -506,7 +442,7 @@ def get_video_bitrate(video_file):
                     # Format bitrate includes all streams, but it's better than nothing
                     # Convert from bit/s to kbit/s
                     return int(int(format_bitrate) / 1000)
-        
+
         # Fallback 3: Try MediaInfo
         cmd = ['mediainfo', '--Output=JSON', video_file]
         result = subprocess.run(
@@ -540,7 +476,7 @@ def get_audio_bitrate(video_file):
     # Get language codes for the configured language and English fallback
     preferred_lang_codes = config.LANGUAGE_CODE_MAP.get(config.CONTENT_LANGUAGE, [config.CONTENT_LANGUAGE.lower()])
     english_lang_codes = config.LANGUAGE_CODE_MAP.get('en', ['eng', 'en', 'english'])
-    
+
     try:
         # Primary + Fallback 1: Try to get BPS from stream tags (MKV) and bit_rate field (MP4)
         cmd = [
@@ -580,7 +516,7 @@ def get_audio_bitrate(video_file):
                         if language in english_lang_codes:
                             english_stream = stream
                         break
-                    
+
                     if english_stream is None and language in english_lang_codes:
                         english_stream = stream
 
@@ -589,19 +525,19 @@ def get_audio_bitrate(video_file):
 
                 if selected_stream:
                     tags = selected_stream.get('tags', {})
-                    
+
                     # Primary: Try BPS from stream tags (MKV containers)
                     bps = tags.get('BPS')
                     if bps:
                         # BPS is in bit/s, convert to kbit/s
                         return int(int(bps) / 1000)
-                    
+
                     # Fallback 1: Try bit_rate field (MP4 and other containers)
                     bit_rate = selected_stream.get('bit_rate')
                     if bit_rate:
                         # Convert from bit/s to kbit/s
                         return int(int(bit_rate) / 1000)
-        
+
         # Fallback 2: Try format-level bitrate (less useful for audio, but worth trying)
         cmd = [
             'ffprobe', '-v', 'error',
@@ -622,10 +558,10 @@ def get_audio_bitrate(video_file):
                     # Format bitrate includes all streams, estimate audio using configured ratio
                     # This is a rough estimate and should only be used as last resort
                     # Convert from bit/s to kbit/s
-                    estimated_audio = int(int(format_bitrate) * AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO / 1000)
+                    estimated_audio = int(int(format_bitrate) * config.AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO / 1000)
                     if estimated_audio > 0:
                         return estimated_audio
-        
+
         # Fallback 3: Try MediaInfo
         cmd = ['mediainfo', '--Output=JSON', video_file]
         result = subprocess.run(
@@ -642,22 +578,22 @@ def get_audio_bitrate(video_file):
                     preferred_track = None
                     english_track = None
                     first_track = audio_tracks[0] if audio_tracks else None
-                    
+
                     for track in audio_tracks:
                         language = track.get('Language', '').lower()
-                        
+
                         if language in preferred_lang_codes:
                             preferred_track = track
                             if language in english_lang_codes:
                                 english_track = track
                             break
-                        
+
                         if english_track is None and language in english_lang_codes:
                             english_track = track
-                    
+
                     # Use preferred language track if found, otherwise English, otherwise first track
                     selected_track = preferred_track if preferred_track else (english_track if english_track else first_track)
-                    
+
                     if selected_track:
                         # Try BitRate field (in bit/s)
                         bitrate = selected_track.get('BitRate')
@@ -680,7 +616,7 @@ def get_audio_codec(video_file):
     # Get language codes for the configured language and English fallback
     preferred_lang_codes = config.LANGUAGE_CODE_MAP.get(config.CONTENT_LANGUAGE, [config.CONTENT_LANGUAGE.lower()])
     english_lang_codes = config.LANGUAGE_CODE_MAP.get('en', ['eng', 'en', 'english'])
-    
+
     # Try MediaInfo first for better format detection (especially Atmos and
     # DTS:X)
     audio_tracks = get_audio_info_mediainfo(video_file)
@@ -702,7 +638,7 @@ def get_audio_codec(video_file):
                 if language in english_lang_codes:
                     english_track = track
                 break
-            
+
             if english_track is None and language in english_lang_codes:
                 english_track = track
 
@@ -824,7 +760,7 @@ def get_audio_codec(video_file):
                         if language in english_lang_codes:
                             english_stream = stream
                         break
-                    
+
                     if english_stream is None and language in english_lang_codes:
                         english_stream = stream
 
@@ -903,7 +839,7 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
     hdr_info = detect_hdr_format(file_path)
     resolution = get_video_resolution(file_path)
     audio_codec = get_audio_codec(file_path)
-    
+
     # Get additional metadata for media details dialog
     duration = get_video_duration(file_path)
     video_bitrate = get_video_bitrate(file_path)
@@ -918,13 +854,13 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
     tmdb_year = None
     tmdb_rating = None
     tmdb_plot = None
-    
+
     if config.IMAGE_SOURCE == 'fanart':
         # Use Fanart.tv for poster
         tmdb_id, poster_url = get_fanart_poster_func(filename)
         # Fetch title, year, rating, and plot from TMDB if we have a TMDB ID and API key
         if tmdb_id and config.TMDB_API_KEY:
-            print(f"  [TMDB] Fetching title/year/rating/plot for Fanart.tv poster...")
+            print("  [TMDB] Fetching title/year/rating/plot for Fanart.tv poster...")
             # Try movie first - use get_tmdb_poster_by_id to get rating and plot too
             _, tmdb_title, tmdb_year, tmdb_rating, tmdb_plot = get_tmdb_poster_by_id_func(tmdb_id, 'movie')
             if not tmdb_title:
@@ -1019,4 +955,3 @@ def background_scan_new_files(scanned_paths, scan_video_file_func):
             scan_video_file_func(file_path)
         except Exception as e:
             print(f"Error scanning {file_path}: {e}")
-
