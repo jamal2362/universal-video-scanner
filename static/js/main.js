@@ -690,6 +690,23 @@ function getAudioRank(audioCodec) {
     return 9;
 }
 
+function getChannelCount(audioCodec) {
+    // Extract channel count from audio codec string
+    // Formats like "DTS-HD MA 7.1", "Dolby TrueHD 5.1 (Atmos)", etc.
+    const audio = (audioCodec || '').toLowerCase();
+    
+    // Match patterns like "7.1", "5.1", "2.0", etc.
+    const channelMatch = audio.match(/(\d+)\.(\d+)/);
+    if (channelMatch) {
+        // Convert to numeric value for proper sorting
+        // e.g., "7.1" becomes 7.1, "5.1" becomes 5.1
+        return parseFloat(channelMatch[0]);
+    }
+    
+    // Return 0 if no channel info found (will sort last)
+    return 0;
+}
+
 function sortTableByAudio() {
     const table = document.getElementById('mediaTable');
     if (!table) return;
@@ -703,15 +720,15 @@ function sortTableByAudio() {
         const aRank = getAudioRank(aAudio);
         const bRank = getAudioRank(bAudio);
         
+        // Primary sort: by audio type rank
         if (aRank !== bRank) return aRank - bRank;
         
-        // If same rank, sort alphabetically by codec name
-        const aLower = aAudio.toLowerCase();
-        const bLower = bAudio.toLowerCase();
-        if (aLower < bLower) return -1;
-        if (aLower > bLower) return 1;
+        // Secondary sort: by channel count (descending - higher channels first)
+        const aChannels = getChannelCount(aAudio);
+        const bChannels = getChannelCount(bAudio);
+        if (aChannels !== bChannels) return bChannels - aChannels;
         
-        // If same audio codec, sort secondarily by filename
+        // Tertiary sort: by filename
         const aName = getFilenameFromRow(a).toLowerCase();
         const bName = getFilenameFromRow(b).toLowerCase();
         if (aName < bName) return -1;
