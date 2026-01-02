@@ -33,5 +33,7 @@
   "dialog_plot": "Handlung:",
   "dialog_links": "Link:",
   "dialog_directors": "Regie:",
-  "dialog_cast": "Darsteller:"
+  "dialog_cast": "Darsteller:",
+  "dialog_no_info": "Keine Informationen",
+  "dialog_trailer": "Trailer:"
 }

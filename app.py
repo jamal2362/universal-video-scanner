@@ -6,7 +6,8 @@ Flask web application for scanning and managing video files
 import os
 import re
 import threading
-from flask import Flask, render_template, jsonify, request, send_file
+import queue
+from flask import Flask, render_template, jsonify, request, send_file, Response
 
 # Import configuration
 import config
@@ -28,6 +29,9 @@ from watchers.media_watcher import start_file_observer
 app = Flask(__name__,
             template_folder=config.TEMPLATES_DIR,
             static_folder=config.STATIC_DIR)
+
+# Event queue for Server-Sent Events
+deletion_event_queue = queue.Queue()
 
 
 # Helper function wrappers to pass dependencies to scan_video_file
@@ -228,6 +232,32 @@ def serve_poster(filename):
         return "Error serving poster", 500
 
 
+@app.route('/events')
+def events():
+    """Server-Sent Events endpoint for real-time updates"""
+    def event_stream():
+        # Send a keep-alive comment every 30 seconds
+        import time
+        last_keepalive = time.time()
+        
+        while True:
+            try:
+                # Check for deletion events (non-blocking with timeout)
+                try:
+                    event_data = deletion_event_queue.get(timeout=1)
+                    yield f"event: file_deleted\ndata: {event_data}\n\n"
+                except queue.Empty:
+                    # Send keep-alive every 30 seconds
+                    current_time = time.time()
+                    if current_time - last_keepalive > 30:
+                        yield ": keep-alive\n\n"
+                        last_keepalive = current_time
+            except GeneratorExit:
+                break
+    
+    return Response(event_stream(), mimetype='text/event-stream')
+
+
 def main():
     """Main application entry point"""
     print("=" * 50)
@@ -290,7 +320,8 @@ def main():
         database.scanned_paths,
         database.scan_lock,
         lambda: database.save_database(config.DB_FILE),
-        _delete_cached_poster_wrapper
+        _delete_cached_poster_wrapper,
+        deletion_event_queue
     )
 
     # Start initial scan automatically in background

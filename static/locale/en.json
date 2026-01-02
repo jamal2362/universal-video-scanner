@@ -33,5 +33,7 @@
   "dialog_plot": "Plot:",
   "dialog_links": "Link:",
   "dialog_directors": "Directors:",
-  "dialog_cast": "Cast:"
+  "dialog_cast": "Cast:",
+  "dialog_no_info": "No information available",
+  "dialog_trailer": "Trailer:"
 }

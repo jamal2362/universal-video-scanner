@@ -732,8 +732,86 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+        
+        // Set up Server-Sent Events for real-time deletion updates
+        setupSSE();
     });
 });
+
+/* -------------------------------
+   Server-Sent Events for Live Updates
+   ------------------------------- */
+
+function setupSSE() {
+    if (typeof EventSource === 'undefined') {
+        console.warn('EventSource not supported by browser');
+        return;
+    }
+    
+    const eventSource = new EventSource('/events');
+    
+    eventSource.addEventListener('file_deleted', function(e) {
+        try {
+            const data = JSON.parse(e.data);
+            const filePath = data.file_path;
+            
+            if (filePath) {
+                removeFileFromTable(filePath);
+            }
+        } catch (error) {
+            console.error('Error parsing deletion event:', error);
+        }
+    });
+    
+    eventSource.onerror = function(e) {
+        console.error('SSE connection error:', e);
+        // EventSource will automatically try to reconnect
+    };
+}
+
+function removeFileFromTable(filePath) {
+    // Find the table row that corresponds to the deleted file
+    const table = document.getElementById('mediaTable');
+    if (!table) return;
+    
+    const rows = table.querySelectorAll('tbody tr');
+    
+    for (const row of rows) {
+        // Try to find the title attribute which contains the filename
+        const posterCell = row.querySelector('td[data-label-i18n="table_header_poster"]');
+        if (posterCell && posterCell.getAttribute('title') === filePath) {
+            row.remove();
+            updateFileCount();
+            updateProfileStats();
+            console.log(`Removed deleted file from table: ${filePath}`);
+            return;
+        }
+        
+        // Fallback: check if filename matches (without full path)
+        const filename = filePath.split('/').pop();
+        if (posterCell && posterCell.getAttribute('title') === filename) {
+            row.remove();
+            updateFileCount();
+            updateProfileStats();
+            console.log(`Removed deleted file from table: ${filename}`);
+            return;
+        }
+    }
+}
+
+function updateFileCount() {
+    const table = document.getElementById('mediaTable');
+    if (!table) return;
+    
+    const visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+    const fileCountElement = document.getElementById('fileCount');
+    
+    if (fileCountElement) {
+        const count = visibleRows.length;
+        fileCountElement.innerHTML = `${count} <span data-i18n="media_count"></span>`;
+        applyTranslations();
+    }
+}
 
 /* -------------------------------
    Media Details Dialog Functions
@@ -777,6 +855,8 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     const dialogPoster = document.getElementById('dialogPoster');
     const dialogPosterImg = document.getElementById('dialogPosterImg');
     const dialogTmdbLink = document.getElementById('dialogTmdbLink');
+    const dialogTrailer = document.getElementById('dialogTrailer');
+    const dialogTrailerLink = document.getElementById('dialogTrailerLink');
     const dialogPlot = document.getElementById('dialogPlot');
     const dialogPlotText = document.getElementById('dialogPlotText');
     const dialogDirectors = document.getElementById('dialogDirectors');
@@ -792,19 +872,20 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     }
     
     // Set poster image if available
-    if (posterUrl && posterUrl !== '') {
+    if (posterUrl && posterUrl !== '' && posterUrl !== 'None') {
         dialogPosterImg.src = posterUrl;
         dialogPoster.style.display = 'block';
     } else {
         dialogPoster.style.display = 'none';
     }
     
-    // Set plot if available
-    if (plot && plot !== '') {
+    // Set plot if available, otherwise show fallback text
+    if (plot && plot !== '' && plot !== 'None') {
         dialogPlotText.textContent = plot;
         dialogPlot.style.display = 'flex';
     } else {
-        dialogPlot.style.display = 'none';
+        dialogPlotText.textContent = t('dialog_no_info');
+        dialogPlot.style.display = 'flex';
     }
     
     // Set directors if available
@@ -855,6 +936,18 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     } else {
         // Hide links if no TMDb ID
         dialogTmdbLink.style.display = 'none';
+    }
+    
+    // Set up YouTube trailer link
+    if (title && title !== '') {
+        const searchQuery = year && year !== '' 
+            ? `${title} (${year}) - Trailer`
+            : `${title} - Trailer`;
+        const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
+        dialogTrailerLink.href = youtubeUrl;
+        dialogTrailer.style.display = 'flex';
+    } else {
+        dialogTrailer.style.display = 'none';
     }
     
     // Show dialog
