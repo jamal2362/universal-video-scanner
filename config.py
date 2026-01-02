@@ -91,12 +91,14 @@ AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO = 0.1
 # Supported video formats
 SUPPORTED_FORMATS = {'.mkv', '.mp4', '.m4v', '.ts', '.hevc'}
 
-# Ensure directories exist
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(TEMP_DIR, exist_ok=True)
-os.makedirs(TEMPLATES_DIR, exist_ok=True)
-os.makedirs(CSS_DIR, exist_ok=True)
-os.makedirs(JS_DIR, exist_ok=True)
-os.makedirs(LOCALE_DIR, exist_ok=True)
-os.makedirs(FONTS_DIR, exist_ok=True)
-os.makedirs(POSTER_CACHE_DIR, exist_ok=True)
+
+def ensure_directories():
+    """Ensure all required directories exist. Call this from main() in app.py"""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(TEMP_DIR, exist_ok=True)
+    os.makedirs(TEMPLATES_DIR, exist_ok=True)
+    os.makedirs(CSS_DIR, exist_ok=True)
+    os.makedirs(JS_DIR, exist_ok=True)
+    os.makedirs(LOCALE_DIR, exist_ok=True)
+    os.makedirs(FONTS_DIR, exist_ok=True)
+    os.makedirs(POSTER_CACHE_DIR, exist_ok=True)
