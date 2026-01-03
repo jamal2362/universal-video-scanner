@@ -65,6 +65,28 @@ JS_DIR = os.path.join(STATIC_DIR, 'js')
 LOCALE_DIR = os.path.join(STATIC_DIR, 'locale')
 FONTS_DIR = os.path.join(STATIC_DIR, 'fonts')
 
+
+def get_templates_dir():
+    """
+    Get the templates directory path.
+    Prefers the copy in DATA_DIR if it exists, otherwise uses the bundled version.
+    """
+    data_templates = os.path.join(DATA_DIR, 'templates')
+    if os.path.exists(data_templates):
+        return data_templates
+    return TEMPLATES_DIR
+
+
+def get_static_dir():
+    """
+    Get the static directory path.
+    Prefers the copy in DATA_DIR if it exists, otherwise uses the bundled version.
+    """
+    data_static = os.path.join(DATA_DIR, 'static')
+    if os.path.exists(data_static):
+        return data_static
+    return STATIC_DIR
+
 # Scanner configuration constants
 FILE_WRITE_DELAY = int(os.environ.get('FILE_WRITE_DELAY', '5'))
 AUTO_REFRESH_INTERVAL = int(os.environ.get('AUTO_REFRESH_INTERVAL', '10'))

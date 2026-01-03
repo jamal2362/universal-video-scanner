@@ -13,7 +13,7 @@ from flask import Flask, render_template, jsonify, request, send_file, Response
 import config
 
 # Import utility functions
-from utils.file_utils import cleanup_temp_directory
+from utils.file_utils import cleanup_temp_directory, copy_static_and_templates_to_data_dir
 from utils.i18n import translate, get_request_language
 
 # Import service modules
@@ -28,8 +28,8 @@ from watchers.media_watcher import start_file_observer
 
 # Initialize Flask app
 app = Flask(__name__,
-            template_folder=config.TEMPLATES_DIR,
-            static_folder=config.STATIC_DIR)
+            template_folder=config.get_templates_dir(),
+            static_folder=config.get_static_dir())
 
 # Event queue for Server-Sent Events
 deletion_event_queue = queue.Queue()
@@ -248,6 +248,14 @@ def main():
 
     # Ensure all required directories exist
     config.ensure_directories()
+
+    # Copy static and templates directories to data directory
+    # This allows users to modify these files from the host system
+    copy_static_and_templates_to_data_dir(
+        config.STATIC_DIR,
+        config.TEMPLATES_DIR,
+        config.DATA_DIR
+    )
 
     # Clean up any orphaned temporary files from previous runs
     cleanup_temp_directory(config.TEMP_DIR)
