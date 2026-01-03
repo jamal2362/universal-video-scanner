@@ -8,6 +8,7 @@ import re
 import threading
 import queue
 from flask import Flask, render_template, jsonify, request, send_file, Response
+from flask.helpers import send_from_directory
 
 # Import configuration
 import config
@@ -268,12 +269,12 @@ def main():
     # Flask caches the static folder path in its view function at initialization.
     # We need to update the static view function to use the new folder.
     # This ensures static files (CSS, JS, etc.) are served from the data directory.
-    if app.static_folder and hasattr(app, 'view_functions') and 'static' in app.view_functions:
-        # Get the static view function and update its static folder reference
-        from flask.helpers import send_from_directory
-        
+    if app.static_folder and 'static' in app.view_functions:
         def updated_static(filename):
-            """Updated static file handler that uses the new static folder."""
+            """
+            Updated static file handler that uses the new static folder.
+            Flask's send_from_directory already handles path traversal security.
+            """
             return send_from_directory(app.static_folder, filename)
         
         app.view_functions['static'] = updated_static
