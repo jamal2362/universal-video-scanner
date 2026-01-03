@@ -15,8 +15,8 @@ except ImportError:
 
 # Environment Variables and Base Paths
 MEDIA_PATH = '/media'
-DATA_DIR = '/app/data'
-TEMP_DIR = '/app/temp'
+DATA_DIR = '/data/app/data'
+TEMP_DIR = '/data/app/temp'
 DB_FILE = os.path.join(DATA_DIR, 'scanned_files.json')
 POSTER_CACHE_DIR = os.path.join(DATA_DIR, 'posters')
 
@@ -58,9 +58,9 @@ LANGUAGE_CODE_MAP = {
 }
 
 # Static files configuration
-# Use bundled static files from /app directory instead of downloading from GitHub
-TEMPLATES_DIR = '/app/templates'
-STATIC_DIR = '/app/static'
+# Use bundled static files from /data/app directory instead of downloading from GitHub
+TEMPLATES_DIR = '/data/app/templates'
+STATIC_DIR = '/data/app/static'
 CSS_DIR = os.path.join(STATIC_DIR, 'css')
 JS_DIR = os.path.join(STATIC_DIR, 'js')
 LOCALE_DIR = os.path.join(STATIC_DIR, 'locale')

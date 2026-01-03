@@ -21,7 +21,7 @@ RUN wget https://github.com/quietvoid/dovi_tool/releases/download/2.3.1/dovi_too
     && rm dovi_tool-2.3.1-x86_64-unknown-linux-musl.tar.gz
 
 # Set working directory
-WORKDIR /app
+WORKDIR /data/app
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
@@ -33,8 +33,13 @@ COPY config.py .
 COPY services/ ./services/
 COPY utils/ ./utils/
 COPY watchers/ ./watchers/
-COPY static/ ./static/
-COPY templates/ ./templates/
+
+# Copy static and templates folders to /data/app
+COPY static /data/app/static
+COPY templates /data/app/templates
+
+# Set permissions for static and templates folders
+RUN chmod -R 755 /data/app/static /data/app/templates
 
 # Create media directory
 RUN mkdir -p /media

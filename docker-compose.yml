@@ -8,7 +8,7 @@ services:
       - "2367:2367"
     volumes:
       - ./media:/media
-      - ./data:/app/data
+      - ./data:/data/app/data
     restart: unless-stopped
     environment:
       - FILE_WRITE_DELAY=5 # Seconds to wait before scanning new files
