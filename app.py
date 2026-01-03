@@ -27,7 +27,10 @@ from services.video_scanner import scan_video_file, scan_directory, background_s
 from watchers.media_watcher import start_file_observer
 
 # Initialize Flask app with original directories
-# These will be updated in main() after copying to data directory
+# Note: Flask app is initialized at module import time, before main() is called.
+# The template_folder and static_folder will be updated in main() after copying
+# directories to the data directory. This is necessary because other modules
+# may import this module before main() runs.
 app = Flask(__name__,
             template_folder=config.TEMPLATES_DIR,
             static_folder=config.STATIC_DIR)

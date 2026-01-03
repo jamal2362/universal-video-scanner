@@ -40,14 +40,25 @@ def copy_directory_with_writable_permissions(src_dir, dest_dir):
     Args:
         src_dir: Source directory path
         dest_dir: Destination directory path
+        
+    Returns:
+        bool: True if copy was successful, False otherwise
     """
     try:
         if not os.path.exists(src_dir):
             print(f"Warning: Source directory does not exist: {src_dir}")
             return False
-            
-        # If destination exists, remove it first to ensure clean copy
+        
+        # Safety check: ensure dest_dir is a subdirectory within a data/config directory
+        # to prevent accidental deletion of important system files
+        dest_dir_abs = os.path.abspath(dest_dir)
         if os.path.exists(dest_dir):
+            # Additional safety: only remove if destination is within expected paths
+            safe_paths = ['/app/data', '/tmp', os.path.expanduser('~')]
+            is_safe = any(dest_dir_abs.startswith(os.path.abspath(p)) for p in safe_paths)
+            if not is_safe:
+                print(f"Warning: Refusing to remove directory outside safe paths: {dest_dir}")
+                return False
             shutil.rmtree(dest_dir)
             
         # Copy the directory
@@ -78,6 +89,9 @@ def copy_static_and_templates_to_data_dir(static_src, templates_src, data_dir):
         static_src: Path to source static directory (e.g., /app/static)
         templates_src: Path to source templates directory (e.g., /app/templates)
         data_dir: Path to data directory (e.g., /app/data)
+        
+    Returns:
+        tuple: (static_success, templates_success) - boolean values indicating if each copy succeeded
     """
     print("=" * 50)
     print("Copying static and templates to data directory...")
@@ -86,15 +100,19 @@ def copy_static_and_templates_to_data_dir(static_src, templates_src, data_dir):
     templates_dest = os.path.join(data_dir, 'templates')
     
     # Copy static directory
-    if copy_directory_with_writable_permissions(static_src, static_dest):
+    static_success = copy_directory_with_writable_permissions(static_src, static_dest)
+    if static_success:
         print(f"✓ Copied static/ to {static_dest}")
     else:
         print(f"✗ Failed to copy static/ to {static_dest}")
     
     # Copy templates directory
-    if copy_directory_with_writable_permissions(templates_src, templates_dest):
+    templates_success = copy_directory_with_writable_permissions(templates_src, templates_dest)
+    if templates_success:
         print(f"✓ Copied templates/ to {templates_dest}")
     else:
         print(f"✗ Failed to copy templates/ to {templates_dest}")
     
     print("=" * 50)
+    
+    return static_success, templates_success
