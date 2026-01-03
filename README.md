@@ -110,6 +110,10 @@ DoVi-Detector/
 ├── requirements.txt    # Python dependencies
 ├── media/             # Media directory (volume)
 └── data/              # Database directory (volume)
+    ├── scanned_files.json  # Video scan results
+    ├── posters/           # Cached poster images
+    ├── static/            # Static files (CSS, JS, fonts, locales)
+    └── templates/         # HTML templates
 ```
 
 ### Scanner Workflow
@@ -120,10 +124,42 @@ DoVi-Detector/
 4. **dovi_tool info** analyzes RPU and determines profile/EL type
 5. **Results** are saved to JSON database
 
+### Static Files and Templates
+
+On startup, the application automatically copies the `static/` and `templates/` directories to the `data/` directory. This allows you to:
+
+- **Access files from the host**: Modify CSS, JavaScript, HTML templates, or locale files directly from `./data/static/` and `./data/templates/`
+- **Customize the interface**: Make changes to the web interface without rebuilding the Docker container
+- **Persistent modifications**: Your changes persist across container restarts
+
+**File Locations:**
+- **Host system**: `./data/static/` and `./data/templates/`
+- **Inside container**: `/app/data/static/` and `/app/data/templates/`
+
+**Access Rights:**
+- All copied files and directories are **writable** by default
+- You can modify any file (CSS styles, JavaScript, HTML templates, translations)
+- Changes take effect after restarting the container
+
+**Example customizations:**
+```bash
+# Edit CSS styles
+nano ./data/static/css/style.css
+
+# Modify translations
+nano ./data/static/locale/en.json
+
+# Customize HTML template
+nano ./data/templates/index.html
+
+# Restart container to apply changes
+docker-compose restart
+```
+
 ### Volumes
 
 - `./media:/media` - Media directory
-- `./data:/app/data` - Persistent database
+- `./data:/app/data` - Persistent database, cached posters, static files, and templates
 
 ### Environment Variables
 
