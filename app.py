@@ -26,10 +26,11 @@ from services.video_scanner import scan_video_file, scan_directory, background_s
 # Import watcher
 from watchers.media_watcher import start_file_observer
 
-# Initialize Flask app
+# Initialize Flask app with original directories
+# These will be updated in main() after copying to data directory
 app = Flask(__name__,
-            template_folder=config.get_templates_dir(),
-            static_folder=config.get_static_dir())
+            template_folder=config.TEMPLATES_DIR,
+            static_folder=config.STATIC_DIR)
 
 # Event queue for Server-Sent Events
 deletion_event_queue = queue.Queue()
@@ -256,6 +257,12 @@ def main():
         config.TEMPLATES_DIR,
         config.DATA_DIR
     )
+
+    # Update Flask app to use copied directories
+    app.template_folder = config.get_templates_dir()
+    app.static_folder = config.get_static_dir()
+    print(f"Flask using templates from: {app.template_folder}")
+    print(f"Flask using static files from: {app.static_folder}")
 
     # Clean up any orphaned temporary files from previous runs
     cleanup_temp_directory(config.TEMP_DIR)

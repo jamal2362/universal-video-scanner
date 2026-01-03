@@ -25,10 +25,10 @@ def cleanup_temp_directory(temp_dir):
 
 
 def make_writable(path):
-    """Make a file or directory writable by adding write permissions"""
+    """Make a file or directory writable by adding write permissions for user and group"""
     try:
         current_permissions = os.stat(path).st_mode
-        os.chmod(path, current_permissions | stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
+        os.chmod(path, current_permissions | stat.S_IWUSR | stat.S_IWGRP)
     except Exception as e:
         print(f"Warning: Could not make {path} writable: {e}")
 
