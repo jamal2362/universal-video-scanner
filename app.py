@@ -264,6 +264,20 @@ def main():
     # Update Flask app to use copied directories
     app.template_folder = config.get_templates_dir()
     app.static_folder = config.get_static_dir()
+    
+    # Flask caches the static folder path in its view function at initialization.
+    # We need to update the static view function to use the new folder.
+    # This ensures static files (CSS, JS, etc.) are served from the data directory.
+    if app.static_folder and hasattr(app, 'view_functions') and 'static' in app.view_functions:
+        # Get the static view function and update its static folder reference
+        from flask.helpers import send_from_directory
+        
+        def updated_static(filename):
+            """Updated static file handler that uses the new static folder."""
+            return send_from_directory(app.static_folder, filename)
+        
+        app.view_functions['static'] = updated_static
+    
     print(f"Flask using templates from: {app.template_folder}")
     print(f"Flask using static files from: {app.static_folder}")
 
