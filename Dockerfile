@@ -35,11 +35,11 @@ COPY utils/ ./utils/
 COPY watchers/ ./watchers/
 
 # Copy static and templates folders to /data/app
-COPY static /data/app/static
-COPY templates /data/app/templates
+COPY static ./static
+COPY templates ./templates
 
 # Set permissions for static and templates folders
-RUN chmod -R 755 /data/app/static /data/app/templates
+RUN chmod -R 755 ./static ./templates
 
 # Create media directory
 RUN mkdir -p /media
