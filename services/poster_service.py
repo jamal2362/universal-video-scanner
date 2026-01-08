@@ -25,7 +25,7 @@ def delete_cached_poster(file_info, poster_cache_dir):
         if os.path.exists(backdrop_path):
             try:
                 os.remove(backdrop_path)
-                print(f"✗ Removed cached poster: {poster_filename}")
+                print(f"[REMOVED] Removed cached poster: {poster_filename}")
             except Exception as e:
                 print(f"Error removing poster {poster_filename}: {e}")
 
@@ -114,4 +114,4 @@ def migrate_poster_urls_to_cache(scanned_files, scan_lock, save_database_func, p
 
         if migrated_count > 0:
             save_database_func()
-            print(f"✓ Migrated {migrated_count} poster(s) to cache")
+            print(f"[OK] Migrated {migrated_count} poster(s) to cache")

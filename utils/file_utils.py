@@ -189,22 +189,22 @@ def copy_static_and_templates_to_data_dir(static_src, templates_src, data_dir):
     # Copy directories (force=True to overwrite)
     static_success = copy_directory_with_writable_permissions(static_src, static_dest, force=need_update)
     if static_success:
-        print(f"✓ Copied static/ to {static_dest}")
+        print(f"[OK] Copied static/ to {static_dest}")
     else:
-        print(f"✗ Failed to copy static/ to {static_dest}")
+        print(f"[ERROR] Failed to copy static/ to {static_dest}")
     
     templates_success = copy_directory_with_writable_permissions(templates_src, templates_dest, force=need_update)
     if templates_success:
-        print(f"✓ Copied templates/ to {templates_dest}")
+        print(f"[OK] Copied templates/ to {templates_dest}")
     else:
-        print(f"✗ Failed to copy templates/ to {templates_dest}")
+        print(f"[ERROR] Failed to copy templates/ to {templates_dest}")
     
     # Save version file
     if static_success and templates_success:
         try:
             with open(version_file, 'w') as f:
                 f.write(current_version)
-            print(f"✓ Version tracking updated")
+            print(f"[OK] Version tracking updated")
         except Exception as e:
             print(f"Warning: Could not save version file: {e}")
     

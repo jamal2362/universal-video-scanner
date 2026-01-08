@@ -69,7 +69,7 @@ def cleanup_database(db_file, delete_cached_poster_func):
                     scanned_paths.discard(file_path)
                     removed_count += 1
                     print(
-                        f"✗ Removed from database (file not found): {file_path}")
+                        f"[REMOVED] Removed from database (file not found): {file_path}")
 
             if removed_count > 0:
                 save_database(db_file)

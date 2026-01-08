@@ -60,7 +60,7 @@ class MediaFileHandler(FileSystemEventHandler):
                     del self.scanned_files[file_path]
                     self.scanned_paths.discard(file_path)
                     self.save_database_func()
-                    print(f"✗ Removed from database: {file_path}")
+                    print(f"[REMOVED] Removed from database: {file_path}")
 
                     # Notify SSE clients about the deletion
                     if self.deletion_event_queue is not None:

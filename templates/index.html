@@ -10,6 +10,7 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
     <title>Universal Video Scanner</title>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -64,7 +65,7 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                 <div class="right-group">
                     <div class="search-container">
                         <input type="text" id="searchInput" data-i18n-placeholder="search_placeholder">
-                        <button id="clearSearch" class="clear-btn" onclick="clearSearch()" style="display: none;">✕</button>
+                        <button id="clearSearch" class="clear-btn" onclick="clearSearch()" style="display: none;"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                 </div>
             </div>
@@ -120,7 +121,7 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                                 <img src="{{ file.poster_url }}" alt="{{ file.filename }}" class="poster-img" loading="lazy">
                                 {% if file.tmdb_rating %}
                                 <div class="tmdb-badge">
-                                    <span class="tmdb-logo">★</span>
+                                    <i class="fa-solid fa-star tmdb-logo"></i>
                                     <span class="tmdb-rating">{{ "%.1f"|format(file.tmdb_rating) }}</span>
                                 </div>
                                 {% endif %}
@@ -234,8 +235,8 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
             </div>
             <div class="language-switcher">
                 <select id="languageDropdown" onchange="setLanguage(this.value)">
-                    <option value="de" selected>🇩🇪 DE</option>
-                    <option value="en">🇬🇧 EN</option>
+                    <option value="de" selected>DE</option>
+                    <option value="en">EN</option>
                 </select>
             </div>
         </div>
@@ -261,7 +262,7 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                 <div class="dialog-poster-wrapper">
                     <img id="dialogPosterImg" class="dialog-poster-img" src="" alt="Poster">
                     <div class="tmdb-badge dialog-tmdb-badge" id="dialogTmdbBadge" style="display: none;">
-                        <span class="tmdb-logo">★</span>
+                        <i class="fa-solid fa-star tmdb-logo"></i>
                         <span class="tmdb-rating" id="dialogTmdbRating"></span>
                     </div>
                 </div>

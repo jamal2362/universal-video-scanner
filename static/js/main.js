@@ -119,11 +119,11 @@ function startManualScan() {
             message.className = 'message';
             if (data.new_files > 0) {
                 message.classList.add('success');
-                message.textContent = `✓ ${t('scan_complete', { count: data.new_files })}`;
+                message.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${t('scan_complete', { count: data.new_files })}`;
                 setTimeout(() => location.reload(), 2000);
             } else {
                 message.classList.add('info');
-                message.textContent = `ℹ ${t('no_new_files')}`;
+                message.innerHTML = `<i class="fa-solid fa-circle-info"></i> ${t('no_new_files')}`;
 				setTimeout(() => location.reload(), 2000);
             }
             message.style.display = 'block';
@@ -131,7 +131,7 @@ function startManualScan() {
         .catch(error => {
             if (!message) return;
             message.className = 'message error';
-            message.textContent = `✗ ${t('scan_error')}`;
+            message.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${t('scan_error')}`;
             message.style.display = 'block';
             console.error(error);
         })
@@ -203,7 +203,7 @@ function scanSelectedFile() {
         message.className = 'message';
         if (data.success) {
             message.classList.add('success');
-            message.textContent = '✓ ' + data.message;
+            message.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + data.message;
             
             // Reload file list and page
             loadFileList();
@@ -212,7 +212,7 @@ function scanSelectedFile() {
             }, 2000);
         } else {
             message.classList.add('info');
-            message.textContent = 'ℹ ' + (data.message || data.error);
+            message.innerHTML = '<i class="fa-solid fa-circle-info"></i> ' + (data.message || data.error);
         }
         message.style.display = 'block';
     })
@@ -221,7 +221,7 @@ function scanSelectedFile() {
         button.disabled = false;
         message.className = 'message error';
         message.style.display = 'block';
-        message.textContent = `✗ ${t('file_scan_error')}: ${error}`;
+        message.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> ${t('file_scan_error')}: ${error}`;
     });
 }
 

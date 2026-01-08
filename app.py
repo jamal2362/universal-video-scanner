@@ -294,20 +294,20 @@ def main():
         print(f"Image source: {config.IMAGE_SOURCE.upper()}")
         if config.IMAGE_SOURCE == 'fanart':
             if config.FANART_API_KEY:
-                print("✓ Fanart.tv API key configured")
+                print("[OK] Fanart.tv API key configured")
             else:
-                print("⚠ Warning: Fanart.tv selected but FANART_API_KEY not configured - no posters will be fetched")
+                print("[WARNING] Fanart.tv selected but FANART_API_KEY not configured - no posters will be fetched")
         elif config.IMAGE_SOURCE == 'tmdb':
             if config.TMDB_API_KEY:
-                print("✓ TMDB API key configured")
+                print("[OK] TMDB API key configured")
             else:
-                print("⚠ Warning: TMDB selected but TMDB_API_KEY not configured - no posters will be fetched")
+                print("[WARNING] TMDB selected but TMDB_API_KEY not configured - no posters will be fetched")
         else:
-            print(f"⚠ Warning: Unknown IMAGE_SOURCE '{config.IMAGE_SOURCE}' - defaulting to TMDB")
+            print(f"[WARNING] Unknown IMAGE_SOURCE '{config.IMAGE_SOURCE}' - defaulting to TMDB")
             if config.TMDB_API_KEY:
-                print("✓ TMDB API key configured")
+                print("[OK] TMDB API key configured")
             else:
-                print("⚠ Warning: TMDB_API_KEY not configured - no posters will be fetched")
+                print("[WARNING] TMDB_API_KEY not configured - no posters will be fetched")
         print("Migrating poster URLs to cache...")
         migrate_poster_urls_to_cache(
             database.scanned_files,

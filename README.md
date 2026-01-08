@@ -1,8 +1,8 @@
-# 🎟️ Universal Video Scanner
+# Universal Video Scanner
 
 Universal Video Scanner with Web Interface - Automatic detection of HDR formats including Dolby Vision enhancement layers in video files.
 
-## Features ✨
+## Features
 
 - **Automatic Scanning**: Watchdog-based detection of new media files
 - **All HDR Formats**: SDR, HDR10, HDR10+, HLG, and Dolby Vision (all profiles)
@@ -12,7 +12,7 @@ Universal Video Scanner with Web Interface - Automatic detection of HDR formats 
 - **Docker-based**: Simple deployment with Docker Compose
 - **Manual Scan**: Fallback button for on-demand scanning
 
-## Software on Docker Hub 🐳
+## Software on Docker Hub
 
 The software is also available on [Docker Hub](https://hub.docker.com/r/u3known/universal-video-scanner/):
 
@@ -22,7 +22,7 @@ The software is also available on [Docker Hub](https://hub.docker.com/r/u3known/
        width="250">
 </a>
 
-## Quick Start 🚀
+## Quick Start
 
 ### Prerequisites
 
@@ -52,7 +52,7 @@ docker-compose up -d
 http://localhost:2367
 ```
 
-## Usage 📖
+## Usage
 
 ### Adding Media
 
@@ -77,10 +77,10 @@ The scanner automatically detects new files and analyzes them in the background.
 If automatic detection missed a file:
 
 1. Open the web interface
-2. Click "🔍 Scan unscanned media"
+2. Click "Scan unscanned media"
 3. Wait for completion message
 
-## Web Interface 🖥️
+## Web Interface
 
 The dashboard displays the following information:
 
@@ -93,12 +93,12 @@ The dashboard displays the following information:
 
 ### Features
 
-- 📊 Tabular overview of all scanned media
-- 🌙 Dark theme for comfortable viewing
-- 🔄 Auto-refresh every 10 seconds
-- ⚡ Live status during scanning
+- Tabular overview of all scanned media
+- Dark theme for comfortable viewing
+- Auto-refresh every 10 seconds
+- Live status during scanning
 
-## Technical Details 🔧
+## Technical Details
 
 ### Architecture
 
@@ -303,7 +303,7 @@ IMAGE_SOURCE=fanart
 **Without Fanart.tv API Key:**
 - The app will still work normally with TMDB or displaying filenames
 
-## Docker Compose Options 🐳
+## Docker Compose Options
 
 ### Standard Configuration
 
@@ -335,7 +335,7 @@ docker-compose down
 docker-compose up -d --build
 ```
 
-## Troubleshooting 🔍
+## Troubleshooting
 
 ### Container Won't Start
 
@@ -356,7 +356,7 @@ rm -rf data/scanned_files.json
 docker-compose restart
 ```
 
-## Development 💻
+## Development
 
 ### Local Development Without Docker
 
@@ -378,7 +378,7 @@ python3 app.py
 # Open web interface at http://localhost:2367
 ```
 
-## Technology Stack 📚
+## Technology Stack
 
 - **Backend**: Python 3 + Flask
 - **Scanner**: watchdog (Filesystem Events)
@@ -386,11 +386,11 @@ python3 app.py
 - **Container**: Docker + Docker Compose
 - **Frontend**: HTML5 + CSS3 + Vanilla JavaScript
 
-## License 📄
+## License
 
 MIT License - see LICENSE file
 
-## Contributing 🤝
+## Contributing
 
 Pull requests and issues are welcome!
 
@@ -400,13 +400,13 @@ Pull requests and issues are welcome!
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a pull request
 
-## Credits 🙏
+## Credits
 
 - [dovi_tool](https://github.com/quietvoid/dovi_tool) by quietvoid
 - [FFmpeg](https://ffmpeg.org/)
 - [Flask](https://flask.palletsprojects.com/)
 - [Watchdog](https://github.com/gorakhargosh/watchdog)
 
-## Support 💬
+## Support
 
 For questions or issues, please open an issue in the GitHub repository.

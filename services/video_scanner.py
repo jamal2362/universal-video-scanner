@@ -920,7 +920,7 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
         scanned_paths.add(file_path)
         save_database_func()
 
-    print(f"✓ Scanned: {file_path} ({hdr_info.get('format')})")
+    print(f"[OK] Scanned: {file_path} ({hdr_info.get('format')})")
 
     return {
         'success': True,
