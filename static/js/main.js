@@ -155,7 +155,7 @@ function loadFileList() {
                 data.files.forEach(file => {
                     const option = document.createElement('option');
                     option.value = file.path;
-                    option.textContent = file.name + (file.scanned ? ' ✓' : '');
+                    option.textContent = file.name + (file.scanned ? ' [scanned]' : '');
                     if (file.scanned) {
                         option.style.color = '#4ecca3';
                     }
