@@ -33,7 +33,7 @@ The software is also available on [Docker Hub](https://hub.docker.com/r/u3known/
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/U3knOwn/universal-video-scanner.git
+git clone https://github.com/jamal2362/universal-video-scanner.git
 cd universal-video-scanner
 ```
 
