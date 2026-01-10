@@ -682,11 +682,7 @@ tbody tr:hover {
     font-weight: bold;
 }
 
-/* Filename item below the poster */
-.dialog-filename-item {
-    margin-top: 15px;
-}
-
+/* Filename item with word-breaking for long filenames */
 .dialog-filename-item .dialog-value {
     word-break: break-all;
     overflow-wrap: break-word;
