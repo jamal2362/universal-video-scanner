@@ -512,8 +512,8 @@ tbody tr:hover {
 
 .tmdb-badge {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 6px;
+    right: 6px;
 	background: linear-gradient(135deg, rgba(144, 206, 161, 0.25), rgba(0, 39, 49, 0.25)), rgba(0, 0, 0, 0.66);
 	backdrop-filter: blur(6px);
 	-webkit-backdrop-filter: blur(6px);
@@ -521,7 +521,7 @@ tbody tr:hover {
     padding: 4px 8px;
     border-radius: 6px;
     font-weight: bold;
-    font-size: 0.80em;
+    font-size: 0.75em;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -645,8 +645,8 @@ tbody tr:hover {
 
 .dialog-tmdb-badge {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 6px;
+    right: 6px;
 }
 
 .dialog-plot-text {
