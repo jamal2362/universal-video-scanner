@@ -7,6 +7,7 @@ Flask web application for scanning and managing video files
 """
 import os
 import re
+import json
 import threading
 import queue
 from flask import Flask, render_template, jsonify, request, send_file, Response
@@ -241,6 +242,41 @@ def events():
                 break
 
     return Response(event_stream(), mimetype='text/event-stream')
+
+
+@app.route('/clear_database', methods=['POST'])
+def clear_database():
+    """Clear the entire scanned_files database (and cached posters)."""
+    try:
+        # Use the same lock used by scanner to avoid races
+        with database.scan_lock:
+            # Delete cached posters for all files
+            try:
+                for file_info in list(database.scanned_files.values()):
+                    try:
+                        _delete_cached_poster_wrapper(file_info)
+                    except Exception as e:
+                        print(f"Error deleting poster for {file_info.get('filename')}: {e}")
+            except Exception as e:
+                print(f"Error while deleting cached posters: {e}")
+
+            # Clear in-memory DB
+            database.scanned_files.clear()
+            database.scanned_paths.clear()
+
+            # Persist the empty DB
+            database.save_database(config.DB_FILE)
+
+            # Notify SSE clients that DB was cleared
+            try:
+                if deletion_event_queue is not None:
+                    deletion_event_queue.put(json.dumps({'cleared': True}))
+            except Exception as e:
+                print(f"Error queuing clear event: {e}")
+
+        return jsonify({'success': True, 'total_files': 0})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 def main():

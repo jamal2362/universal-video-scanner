@@ -923,6 +923,9 @@ document.addEventListener('DOMContentLoaded', function() {
 		
         // Setup scroll up/down toggle button
         setupScrollButton();
+		
+        // Setup clear db button
+        setupClearButton();
     });
 });
 
@@ -1391,6 +1394,48 @@ function closeMediaDialog(event) {
     const overlay = document.getElementById('mediaDialogOverlay');
     overlay.classList.remove('active');
     document.body.style.overflow = '';
+}
+
+function setupClearButton() {
+    const btn = document.getElementById('clearDbButton');
+    if (!btn) return;
+
+    const label = btn.querySelector('[data-i18n="clear_db"]');
+
+    const originalText = t('clear_db');
+    label.textContent = originalText;
+
+    btn.addEventListener('click', async () => {
+
+        const confirmed = window.confirm(t('clear_db_confirm'));
+        if (!confirmed) return;
+
+        btn.disabled = true;
+        label.textContent = t('please_wait');
+
+        try {
+            const resp = await fetch('/clear_database', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+
+            const data = await resp.json().catch(() => ({}));
+
+            if (resp.ok && data.success) {
+                window.location.reload();
+            } else {
+                alert('Error during deletion: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                label.textContent = originalText;
+            }
+
+        } catch (e) {
+            alert('Network error during deletion: ' + e);
+            btn.disabled = false;
+            label.textContent = originalText;
+        }
+    });
 }
 
 // Swipe gesture handling for mobile

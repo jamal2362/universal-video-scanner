@@ -1011,7 +1011,7 @@ tbody tr:hover {
     font-size: 0.85em;
 }
 
-.site-footer .github-link {
+.site-footer .footer-button {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1020,11 +1020,11 @@ tbody tr:hover {
     transition: color 0.2s ease;
 }
 
-.site-footer .github-link:hover {
+.site-footer .footer-button:hover {
     color: #e6eef6;
 }
 
-.site-footer .github-link svg {
+.site-footer .footer-button svg {
     flex-shrink: 0;
 }
 
