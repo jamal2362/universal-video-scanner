@@ -929,6 +929,46 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.collapse-btn').forEach(btn => {
+        const tbodyId = btn.getAttribute('aria-controls');
+        const tbody = tbodyId && document.getElementById(tbodyId);
+        const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+
+        if (tbody) tbody.style.display = isExpanded ? 'table-row-group' : 'none';
+
+        const hideSvg = btn.querySelector('.hide');
+        const showSvg = btn.querySelector('.show');
+        if (hideSvg && showSvg) {
+            hideSvg.style.display = isExpanded ? 'none' : 'inline-block';
+            showSvg.style.display = isExpanded ? 'inline-block' : 'none';
+        }
+    });
+});
+
+document.addEventListener('click', e => {
+    const btn = e.target.closest('.collapse-btn');
+    if (!btn) return;
+
+    const tbodyId = btn.getAttribute('aria-controls');
+    const tbody = tbodyId && document.getElementById(tbodyId);
+    if (!tbody) return;
+
+    const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+    const next = !isExpanded;
+
+    btn.setAttribute('aria-expanded', next);
+
+    tbody.style.display = next ? 'table-row-group' : 'none';
+
+    const hideSvg = btn.querySelector('.hide');
+    const showSvg = btn.querySelector('.show');
+    if (hideSvg && showSvg) {
+        hideSvg.style.display = next ? 'none' : 'inline-block';
+        showSvg.style.display = next ? 'inline-block' : 'none';
+    }
+});
+
 /* -------------------------------
    Server-Sent Events for Live Updates
    ------------------------------- */

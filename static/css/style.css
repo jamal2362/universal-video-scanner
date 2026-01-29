@@ -572,6 +572,24 @@ tbody tr:hover {
     letter-spacing: 0.5px;
 }
 
+.table-container {
+	position: relative;
+}
+
+.collapse-btn{
+	font-size: 0.8rem;
+	padding: 3px 6px;
+	border-radius: 6px;
+	border: 1px solid #ccc;
+	background: #f7f7f7;
+	cursor: pointer;
+	line-height: 1;
+}
+
+.collapsible-table.collapsed tbody tr{
+	display: none;
+}
+
 .media-dialog-overlay {
     display: none;
     position: fixed;
@@ -913,6 +931,23 @@ tbody tr:hover {
     min-height: 40px;
     align-items: center;
     width: 300px;
+}
+
+.collapse-btn {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-color: #1f2937;
+    color: #e6eef6;
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 10px 10px 10px;
+    font-size: 0.95rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(2,6,23,0.45);
+    transition: all 160ms ease;
+    cursor: pointer;
+    min-height: 40px;
+    text-align: center;
 }
 
 #scanFileButton,
