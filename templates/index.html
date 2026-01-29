@@ -11,6 +11,7 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='fonts/inter.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/scroll-button.css') }}">
 </head>
 <body>
     <div class="container">
@@ -309,6 +310,10 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
             </div>
         </div>
     </div>
+	
+    <button class="scroll-toggle" id="scrollToggle">
+        <span class="icon" aria-hidden="true">↓</span>
+    </button>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
