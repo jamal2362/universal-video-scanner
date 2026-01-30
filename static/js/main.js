@@ -969,6 +969,38 @@ document.addEventListener('click', e => {
     }
 });
 
+function applyControlsCollapsed(collapsed) {
+    const container = document.querySelector('.container');
+    const btn = document.getElementById('toggleControlsBtn');
+    if (!container) return;
+
+    container.classList.toggle('controls-hidden', collapsed);
+
+    if (btn) {
+        btn.setAttribute('aria-expanded', String(!collapsed));
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('dovi_controls_collapsed');
+    const collapsed = saved === null ? true : (saved === 'true');
+
+    applyControlsCollapsed(collapsed);
+
+    const toggleBtn = document.getElementById('toggleControlsBtn');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            const container = document.querySelector('.container');
+            if (!container) return;
+            const nowCollapsed = container.classList.contains('controls-hidden');
+            const nextCollapsed = !nowCollapsed;
+
+            applyControlsCollapsed(nextCollapsed);
+            localStorage.setItem('dovi_controls_collapsed', String(nextCollapsed));
+        });
+    }
+});
+
 /* -------------------------------
    Server-Sent Events for Live Updates
    ------------------------------- */

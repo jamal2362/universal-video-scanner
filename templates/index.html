@@ -19,9 +19,15 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                 <img src="{{ url_for('static', filename='icon.svg') }}" alt="Logo" class="header-logo">
                 <h1 class="title-text"><span data-i18n="title_text"></span></h1>
             </div>
+            <button id="toggleControlsBtn" class="controls-toggle" aria-expanded="false">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span class="visually-hidden" data-i18n="toggle_controls"></span>
+            </button>
         </header>
 
-        <div class="controls">
+        <div class="controls controls-top">
             <div class="top-group">
                 <div class="left-group">
                     <select id="fileSelect">
@@ -43,7 +49,7 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
             </div>
         </div>
 
-        <div class="controls">
+        <div class="controls controls-bottom">
             <div class="bottom-group">
                 <div class="left-group">
                     <select id="sortSelect" data-aria-label-i18n="sort_label">

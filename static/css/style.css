@@ -40,6 +40,37 @@ h1 {
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
+.container.controls-hidden .controls-top,
+.container.controls-hidden .controls-bottom {
+    display: none;
+}
+
+.controls-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #e3e3e3;
+    padding: 6px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-left: 12px;
+}
+
+.controls-toggle svg { display: block; }
+.controls-toggle:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+.visually-hidden {
+    position: absolute !important;
+    height: 1px; width: 1px;
+    overflow: hidden;
+    clip: rect(1px, 1px, 1px, 1px);
+    white-space: nowrap;
+}
+
 .logo-container {
     display: flex;
     align-items: center;
