@@ -1401,17 +1401,67 @@ function setupScrollButton() {
       if (isDialogOpen()) hideButton();
     }
 
-    btn.addEventListener('click', function () {
-      const max = getMaxScrollTop();
+    async function scrollToBottomWithRetries({
+      retries = 8,
+      delay = 300,
+      threshold = 8
+    } = {}) {
+      const getViewport = () =>
+        window.innerHeight || document.documentElement.clientHeight;
 
-      if (currentState === 'top') {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        window.scrollTo({ top: max, behavior: 'smooth' });
+      const getFullHeight = () =>
+        Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+
+      const isAtBottomLocal = () => {
+        const scrollTop = getScrollTop();
+        return (getFullHeight() - (scrollTop + getViewport())) <= threshold;
+      };
+
+      for (let i = 0; i < retries; i++) {
+        window.scrollTo({ top: getFullHeight(), behavior: 'smooth' });
+        await new Promise(r => setTimeout(r, delay));
+        if (isAtBottomLocal()) return true;
       }
 
-      resetInactivityTimer();
-    }, { passive: true });
+      window.scrollTo(0, getFullHeight());
+      return isAtBottomLocal();
+    }
+
+    btn.addEventListener(
+      'click',
+      function () {
+        if (isDialogOpen()) return;
+
+        if (currentState === 'top') {
+          btn.disabled = true;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+
+          setTimeout(() => {
+            btn.disabled = false;
+          }, 600);
+
+          resetInactivityTimer();
+          return;
+        }
+
+        btn.disabled = true;
+
+        scrollToBottomWithRetries({ retries: 8, delay: 350, threshold: 6 })
+          .finally(() => {
+            btn.disabled = false;
+
+            if (getMaxScrollTop() === 0 || isAtTop() || isAtBottom()) {
+              hideButton();
+            } else {
+              setStateBottom();
+              showButton();
+            }
+
+            resetInactivityTimer();
+          });
+      },
+      { passive: true }
+    );
 
     window.addEventListener('scroll', onScrollOrResize, { passive: true });
     window.addEventListener('resize', onScrollOrResize);
