@@ -940,8 +940,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const hideSvg = btn.querySelector('.hide');
         const showSvg = btn.querySelector('.show');
         if (hideSvg && showSvg) {
-            hideSvg.style.display = isExpanded ? 'none' : 'inline-block';
-            showSvg.style.display = isExpanded ? 'inline-block' : 'none';
+            hideSvg.style.display = isExpanded ? 'none' : 'flex';
+            showSvg.style.display = isExpanded ? 'flex' : 'none';
         }
     });
 });
@@ -964,8 +964,8 @@ document.addEventListener('click', e => {
     const hideSvg = btn.querySelector('.hide');
     const showSvg = btn.querySelector('.show');
     if (hideSvg && showSvg) {
-        hideSvg.style.display = next ? 'none' : 'inline-block';
-        showSvg.style.display = next ? 'inline-block' : 'none';
+        hideSvg.style.display = next ? 'none' : 'flex';
+        showSvg.style.display = next ? 'flex' : 'none';
     }
 });
 

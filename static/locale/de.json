@@ -32,6 +32,8 @@
   "search_placeholder": "🔍 Suchen...",
   "search_no_results": "Keine Ergebnisse gefunden",
   "unknown": "Unbekannt",
+  "show": "Anzeigen",
+  "hide": "Ausblenden",
   "clear_db": "Datenbank leeren",
   "clear_db_confirm": "Alle Scan‑Daten werden unwiderruflich gelöscht. Fortfahren?",
   "please_wait": "Bitte warten...",

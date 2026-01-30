@@ -32,6 +32,8 @@
   "search_placeholder": "🔍 Search...",
   "search_no_results": "No results found",
   "unknown": "Unknown",
+  "show": "Show",
+  "hide": "Hide",
   "clear_db": "Delete database",
   "clear_db_confirm": "All scan data will be permanently deleted. Continue?",
   "please_wait": "Please wait...",

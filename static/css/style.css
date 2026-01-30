@@ -158,6 +158,14 @@ h1 {
     gap: 10px;
 }
 
+.toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
 .scroll-toggle{
     position: fixed;
     right: 18px;
@@ -867,7 +875,8 @@ tbody tr:hover {
 }
 
 #fileSelect,
-#sortSelect {
+#sortSelect,
+.collapse-btn {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
@@ -893,20 +902,23 @@ tbody tr:hover {
 }
 
 #fileSelect:hover,
-#sortSelect:hover {
+#sortSelect:hover,
+.collapse-btn:hover {
     transform: translateY(-1px);
     box-shadow: 0 6px 20px rgba(2,6,23,0.55);
 }
 
 #fileSelect:focus,
-#sortSelect:focus {
+#sortSelect:focus,
+.collapse-btn:focus {
     outline: none;
     border-color: rgba(99,102,241,0.9);
     box-shadow: 0 0 0 4px rgba(99,102,241,0.08);
 }
 
 #fileSelect:disabled,
-#sortSelect:disabled {
+#sortSelect:disabled,
+.collapse-btn:disabled {
     opacity: 0.55;
     cursor: not-allowed;
     transform: none;
@@ -930,23 +942,6 @@ tbody tr:hover {
     min-height: 40px;
     align-items: center;
     width: 300px;
-}
-
-.collapse-btn {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    background-color: #1f2937;
-    color: #e6eef6;
-    border: 1px solid rgba(255,255,255,0.06);
-    padding: 10px 10px 10px 10px;
-    font-size: 0.95rem;
-    border-radius: 10px;
-    box-shadow: 0 4px 14px rgba(2,6,23,0.45);
-    transition: all 160ms ease;
-    cursor: pointer;
-    min-height: 40px;
-    text-align: center;
 }
 
 #scanFileButton,
