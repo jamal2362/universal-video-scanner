@@ -1168,9 +1168,13 @@ tbody tr:hover {
     #scanFileButton.hidden {
         display: none !important;
     }
-
-    thead {
-        display: none;
+	
+    table thead,
+    thead,
+    table thead tr,
+    table thead th {
+        display: none !important;
+        visibility: hidden !important;
     }
 
     table {

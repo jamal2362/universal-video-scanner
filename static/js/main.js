@@ -931,11 +931,77 @@ document.addEventListener('DOMContentLoaded', function() {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.collapse-btn').forEach(btn => {
-        const tbodyId = btn.getAttribute('aria-controls');
-        const tbody = tbodyId && document.getElementById(tbodyId);
+        const controlsAttr = btn.getAttribute('aria-controls') || '';
+        const ids = controlsAttr.split(/\s+/).filter(Boolean);
+        const targets = ids.map(id => document.getElementById(id)).filter(Boolean);
+
+        const extraTargets = [];
+        targets.forEach(t => {
+            if (t.tagName && t.tagName.toLowerCase() === 'tbody') {
+                const table = t.closest('table');
+                if (table) {
+                    const thead = table.querySelector('thead');
+                    if (thead) extraTargets.push(thead);
+                }
+            }
+        });
+
+        const elements = targets.concat(extraTargets);
         const isExpanded = btn.getAttribute('aria-expanded') === 'true';
 
-        if (tbody) tbody.style.display = isExpanded ? 'table-row-group' : 'none';
+        elements.forEach(el => {
+            const tag = el.tagName ? el.tagName.toLowerCase() : '';
+            if (tag === 'thead') {
+                el.style.display = isExpanded ? 'table-header-group' : 'none';
+            } else if (tag === 'tbody') {
+                el.style.display = isExpanded ? 'table-row-group' : 'none';
+            } else {
+                el.style.display = isExpanded ? '' : 'none';
+            }
+        });
+
+        const hideSvg = btn.querySelector('.hide');
+        const showSvg = btn.querySelector('.show');
+        if (hideSvg && showSvg) {
+            hideSvg.style.display = isExpanded ? 'none' : 'flex';
+            showSvg.style.display = isExpanded ? 'flex' : 'none';
+        }
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.collapse-btn').forEach(btn => {
+        const controlsAttr = btn.getAttribute('aria-controls') || '';
+        const ids = controlsAttr.split(/\s+/).filter(Boolean);
+        const targets = ids.map(id => document.getElementById(id)).filter(Boolean);
+
+        const isMobile = window.matchMedia('(max-width: 900px)').matches;
+        const extraTargets = [];
+        if (!isMobile) {
+            targets.forEach(t => {
+                if (t.tagName && t.tagName.toLowerCase() === 'tbody') {
+                    const table = t.closest('table');
+                    if (table) {
+                        const thead = table.querySelector('thead');
+                        if (thead) extraTargets.push(thead);
+                    }
+                }
+            });
+        }
+
+        const elements = targets.concat(extraTargets);
+        const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+
+        elements.forEach(el => {
+            const tag = el.tagName ? el.tagName.toLowerCase() : '';
+            if (tag === 'thead') {
+                el.style.display = isExpanded ? 'table-header-group' : 'none';
+            } else if (tag === 'tbody') {
+                el.style.display = isExpanded ? 'table-row-group' : 'none';
+            } else {
+                el.style.display = isExpanded ? '' : 'none';
+            }
+        });
 
         const hideSvg = btn.querySelector('.hide');
         const showSvg = btn.querySelector('.show');
@@ -950,16 +1016,41 @@ document.addEventListener('click', e => {
     const btn = e.target.closest('.collapse-btn');
     if (!btn) return;
 
-    const tbodyId = btn.getAttribute('aria-controls');
-    const tbody = tbodyId && document.getElementById(tbodyId);
-    if (!tbody) return;
+    const controlsAttr = btn.getAttribute('aria-controls') || '';
+    const ids = controlsAttr.split(/\s+/).filter(Boolean);
+    const targets = ids.map(id => document.getElementById(id)).filter(Boolean);
+
+    const isMobile = window.matchMedia('(max-width: 900px)').matches;
+    const extraTargets = [];
+    if (!isMobile) {
+        targets.forEach(t => {
+            if (t.tagName && t.tagName.toLowerCase() === 'tbody') {
+                const table = t.closest('table');
+                if (table) {
+                    const thead = table.querySelector('thead');
+                    if (thead) extraTargets.push(thead);
+                }
+            }
+        });
+    }
+
+    const elements = targets.concat(extraTargets);
+    if (elements.length === 0) return;
 
     const isExpanded = btn.getAttribute('aria-expanded') === 'true';
     const next = !isExpanded;
+    btn.setAttribute('aria-expanded', String(next));
 
-    btn.setAttribute('aria-expanded', next);
-
-    tbody.style.display = next ? 'table-row-group' : 'none';
+    elements.forEach(el => {
+        const tag = el.tagName ? el.tagName.toLowerCase() : '';
+        if (tag === 'thead') {
+            el.style.display = next ? 'table-header-group' : 'none';
+        } else if (tag === 'tbody') {
+            el.style.display = next ? 'table-row-group' : 'none';
+        } else {
+            el.style.display = next ? '' : 'none';
+        }
+    });
 
     const hideSvg = btn.querySelector('.hide');
     const showSvg = btn.querySelector('.show');
