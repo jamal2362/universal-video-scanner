@@ -159,24 +159,23 @@ h1 {
 }
 
 .scroll-toggle{
-    --size:36px;
-    position:fixed;
-    right:1rem;
-    bottom:1rem;
-    width:var(--size);
-    height:var(--size);
-    border-radius:12px;
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
     background: #30304d;
     color: #fff;
-    display:grid;
-    place-items:center;
-    box-shadow:0 6px 18px rgba(3, 10, 30, 0.25);
-    border:0;
-    cursor:pointer;
-    z-index:9999;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 6px 18px rgba(3, 10, 30, 0.25);
+    border: 0;
+    cursor: pointer;
+    z-index: 9999;
     transition: transform .32s cubic-bezier(.2,.9,.2,1), opacity .32s cubic-bezier(.2,.9,.2,1);
     will-change: transform, opacity;
-    opacity:1;
+    opacity: 1;
     transform: translateY(0);
 }
 
