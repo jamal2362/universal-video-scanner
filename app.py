@@ -67,6 +67,15 @@ def _delete_cached_poster_wrapper(file_info):
 def index():
     """Main page showing scanned files"""
     files_list = list(database.scanned_files.values())
+    
+    # Add modification time for sorting
+    for file_info in files_list:
+        file_path = file_info.get('path', '')
+        if file_path and os.path.exists(file_path):
+            file_info['mtime'] = os.path.getmtime(file_path)
+        else:
+            file_info['mtime'] = 0
+    
     # Sort by filename
     files_list.sort(key=lambda x: x['filename'])
 

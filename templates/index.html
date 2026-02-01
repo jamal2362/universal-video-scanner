@@ -66,7 +66,6 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                         <option value="videobitrate" data-i18n="sort_by_videobitrate"></option>
                         <option value="audiobitrate" data-i18n="sort_by_audiobitrate"></option>
                         <option value="added_newest" data-i18n="sort_by_added_newest"></option>
-                        <option value="added_oldest" data-i18n="sort_by_added_oldest"></option>
                     </select>
                 </div>
                 <div class="collapse-btn" aria-expanded="true" aria-controls="collapsed_button">
@@ -115,7 +114,8 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                     data-video-bitrate="{{ file.video_bitrate|default('0') }}" 
                     data-audio-bitrate="{{ file.audio_bitrate|default('0') }}"
                     data-year="{{ file.tmdb_year|default('') }}"
-                    data-duration="{{ file.duration|default('') }}">
+                    data-duration="{{ file.duration|default('') }}"
+                    data-mtime="{{ file.mtime|default('0') }}">
                     <td data-label-i18n="table_header_poster" data-label="Poster / Dateiname" title="{{ file.filename }}">
                         {% if file.poster_url %}
                         <div class="poster-container" 

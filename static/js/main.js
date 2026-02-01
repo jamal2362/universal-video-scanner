@@ -836,38 +836,13 @@ function sortTableByAddedNewest() {
     const tbody = table.querySelector('tbody');
     const rows = Array.from(tbody.querySelectorAll('tr'));
 
-    // Sort by data-added-date if available, otherwise by original row index (descending)
+    // Sort by file modification time (descending - newest first)
     rows.sort((a, b) => {
-        const aDate = parseFloat(a.getAttribute('data-added-date') || a.getAttribute('data-row-index') || 0);
-        const bDate = parseFloat(b.getAttribute('data-added-date') || b.getAttribute('data-row-index') || 0);
+        const aMtime = parseFloat(a.getAttribute('data-mtime') || 0);
+        const bMtime = parseFloat(b.getAttribute('data-mtime') || 0);
         
         // Sort descending (newest first)
-        if (bDate !== aDate) return bDate - aDate;
-        
-        // If same, sort secondarily by filename
-        const aName = getFilenameFromRow(a).toLowerCase();
-        const bName = getFilenameFromRow(b).toLowerCase();
-        if (aName < bName) return -1;
-        if (aName > bName) return 1;
-        return 0;
-    });
-
-    rows.forEach(r => tbody.appendChild(r));
-}
-
-function sortTableByAddedOldest() {
-    const table = document.getElementById('mediaTable');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-
-    // Sort by data-added-date if available, otherwise by original row index (ascending)
-    rows.sort((a, b) => {
-        const aDate = parseFloat(a.getAttribute('data-added-date') || a.getAttribute('data-row-index') || 0);
-        const bDate = parseFloat(b.getAttribute('data-added-date') || b.getAttribute('data-row-index') || 0);
-        
-        // Sort ascending (oldest first)
-        if (aDate !== bDate) return aDate - bDate;
+        if (bMtime !== aMtime) return bMtime - aMtime;
         
         // If same, sort secondarily by filename
         const aName = getFilenameFromRow(a).toLowerCase();
@@ -909,8 +884,6 @@ function applySort(mode) {
         sortTableByDuration();
     } else if (mode === 'added_newest') {
         sortTableByAddedNewest();
-    } else if (mode === 'added_oldest') {
-        sortTableByAddedOldest();
     } else {
         sortTableByFilename();
     }
