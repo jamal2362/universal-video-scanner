@@ -494,6 +494,22 @@ def get_channel_count(track_or_stream, is_mediainfo=True):
         return track_or_stream.get('channels', 0) or 0
 
 
+def get_best_audio_track(tracks, is_mediainfo=True):
+    """
+    Get the audio track with the highest channel count from a list of tracks.
+    
+    Args:
+        tracks: List of MediaInfo tracks or ffprobe streams
+        is_mediainfo: True if MediaInfo tracks, False if ffprobe streams
+        
+    Returns:
+        The track/stream with highest channel count, or None if list is empty
+    """
+    if not tracks:
+        return None
+    return max(tracks, key=lambda t: get_channel_count(t, is_mediainfo=is_mediainfo))
+
+
 def get_audio_bitrate(video_file):
     """Get audio bitrate in kbit/s for the preferred language track using ffprobe with multiple fallback mechanisms"""
     # Get language codes for the configured language and English fallback
@@ -536,17 +552,11 @@ def get_audio_bitrate(video_file):
                     if language in english_lang_codes:
                         english_streams.append(stream)
 
-                # Helper function to get the stream with highest channel count
-                def get_best_stream(streams):
-                    if not streams:
-                        return None
-                    return max(streams, key=lambda s: get_channel_count(s, is_mediainfo=False))
-
                 # Select stream with highest channel count from preferred language, then English, then all
                 selected_stream = (
-                    get_best_stream(preferred_streams) or 
-                    get_best_stream(english_streams) or 
-                    get_best_stream(all_streams)
+                    get_best_audio_track(preferred_streams, is_mediainfo=False) or 
+                    get_best_audio_track(english_streams, is_mediainfo=False) or 
+                    get_best_audio_track(all_streams, is_mediainfo=False)
                 )
 
                 if selected_stream:
@@ -614,17 +624,11 @@ def get_audio_bitrate(video_file):
                         if language in english_lang_codes:
                             english_tracks.append(track)
 
-                    # Helper function to get the track with highest channel count
-                    def get_best_track(tracks):
-                        if not tracks:
-                            return None
-                        return max(tracks, key=lambda t: get_channel_count(t, is_mediainfo=True))
-
                     # Select track with highest channel count from preferred language, then English, then all
                     selected_track = (
-                        get_best_track(preferred_tracks) or 
-                        get_best_track(english_tracks) or 
-                        get_best_track(all_tracks)
+                        get_best_audio_track(preferred_tracks, is_mediainfo=True) or 
+                        get_best_audio_track(english_tracks, is_mediainfo=True) or 
+                        get_best_audio_track(all_tracks, is_mediainfo=True)
                     )
 
                     if selected_track:
@@ -668,17 +672,11 @@ def get_audio_codec(video_file):
             if language in english_lang_codes:
                 english_tracks.append(track)
 
-        # Helper function to get the track with highest channel count
-        def get_best_track(tracks):
-            if not tracks:
-                return None
-            return max(tracks, key=lambda t: get_channel_count(t, is_mediainfo=True))
-
         # Select track with highest channel count from preferred language, then English, then all
         selected_track = (
-            get_best_track(preferred_tracks) or 
-            get_best_track(english_tracks) or 
-            get_best_track(all_tracks)
+            get_best_audio_track(preferred_tracks, is_mediainfo=True) or 
+            get_best_audio_track(english_tracks, is_mediainfo=True) or 
+            get_best_audio_track(all_tracks, is_mediainfo=True)
         )
 
         if selected_track:
@@ -793,17 +791,11 @@ def get_audio_codec(video_file):
                     if language in english_lang_codes:
                         english_streams.append(stream)
 
-                # Helper function to get the stream with highest channel count
-                def get_best_stream(streams):
-                    if not streams:
-                        return None
-                    return max(streams, key=lambda s: get_channel_count(s, is_mediainfo=False))
-
                 # Select stream with highest channel count from preferred language, then English, then all
                 selected_stream = (
-                    get_best_stream(preferred_streams) or 
-                    get_best_stream(english_streams) or 
-                    get_best_stream(all_streams)
+                    get_best_audio_track(preferred_streams, is_mediainfo=False) or 
+                    get_best_audio_track(english_streams, is_mediainfo=False) or 
+                    get_best_audio_track(all_streams, is_mediainfo=False)
                 )
 
                 codec_name = selected_stream.get('codec_name', 'Unknown')
