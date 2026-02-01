@@ -530,7 +530,7 @@ def get_codec_quality_score(track_or_stream, is_mediainfo=True):
             return 950  # DTS:X (non-MA variant)
         if is_atmos and ('E-AC-3' in format_name or 'E-AC-3' in format_commercial):
             return 900  # E-AC-3 Atmos
-        if is_atmos and 'AC-3' in format_name:
+        if is_atmos and format_name == 'AC-3':  # Exact match to avoid matching E-AC-3
             return 850  # AC-3 Atmos (rare)
         if is_atmos:
             return 900  # Generic Atmos (assume E-AC-3 quality)
