@@ -838,8 +838,8 @@ function sortTableByAddedNewest() {
 
     // Sort by data-added-date if available, otherwise by original row index (descending)
     rows.sort((a, b) => {
-        const aDate = a.getAttribute('data-added-date') || a.getAttribute('data-row-index') || 0;
-        const bDate = b.getAttribute('data-added-date') || b.getAttribute('data-row-index') || 0;
+        const aDate = parseFloat(a.getAttribute('data-added-date') || a.getAttribute('data-row-index') || 0);
+        const bDate = parseFloat(b.getAttribute('data-added-date') || b.getAttribute('data-row-index') || 0);
         
         // Sort descending (newest first)
         if (bDate !== aDate) return bDate - aDate;
@@ -863,8 +863,8 @@ function sortTableByAddedOldest() {
 
     // Sort by data-added-date if available, otherwise by original row index (ascending)
     rows.sort((a, b) => {
-        const aDate = a.getAttribute('data-added-date') || a.getAttribute('data-row-index') || 0;
-        const bDate = b.getAttribute('data-added-date') || b.getAttribute('data-row-index') || 0;
+        const aDate = parseFloat(a.getAttribute('data-added-date') || a.getAttribute('data-row-index') || 0);
+        const bDate = parseFloat(b.getAttribute('data-added-date') || b.getAttribute('data-row-index') || 0);
         
         // Sort ascending (oldest first)
         if (aDate !== bDate) return aDate - bDate;
