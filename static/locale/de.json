@@ -16,6 +16,7 @@
   "sort_by_filesize": "💾 Dateigröße",
   "sort_by_videobitrate": "📺 Videobitrate",
   "sort_by_audiobitrate": "🔈 Audiobitrate",
+  "sort_by_audio_audiobitrate": "🔊 Tonspur + Audiobitrate",
   "sort_by_year": "📅 Jahr",
   "sort_by_duration": "⏱️ Laufzeit",
   "sort_by_added": "📥 Hinzugefügt",

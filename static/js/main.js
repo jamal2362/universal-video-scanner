@@ -758,6 +758,42 @@ function sortTableByAudioBitrate() {
     sortTableByNumericAttribute('data-audio-bitrate');
 }
 
+function sortTableByAudioAudioBitrate() {
+    const table = document.getElementById('mediaTable');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    rows.sort((a, b) => {
+        // Primary sorting by Audio Codec
+        const aAudio = getAudioCodecFromRow(a);
+        const bAudio = getAudioCodecFromRow(b);
+        
+        const aRank = getAudioRank(aAudio);
+        const bRank = getAudioRank(bAudio);
+        
+        if (aRank !== bRank) return aRank - bRank;
+		
+        const aChannels = getChannelCount(aAudio);
+        const bChannels = getChannelCount(bAudio);
+        if (aChannels !== bChannels) return bChannels - aChannels;
+
+        // Secondary sorting by Audio Bitrate (descending, highest first)
+        const aAudioBitrate = parseFloat(a.getAttribute('data-audio-bitrate')) || 0;
+        const bAudioBitrate = parseFloat(b.getAttribute('data-audio-bitrate')) || 0;
+        if (bAudioBitrate !== aAudioBitrate) return bAudioBitrate - aAudioBitrate;
+
+        // Tertiary sorting by Filename (alphabetical)
+        const aName = getFilenameFromRow(a).toLowerCase();
+        const bName = getFilenameFromRow(b).toLowerCase();
+        if (aName < bName) return -1;
+        if (aName > bName) return 1;
+        return 0;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+}
+
 function sortTableByYear() {
     const table = document.getElementById('mediaTable');
     if (!table) return;
@@ -878,6 +914,8 @@ function applySort(mode) {
         sortTableByVideoBitrate();
     } else if (mode === 'audiobitrate') {
         sortTableByAudioBitrate();
+    } else if (mode === 'audio_audiobitrate') {
+        sortTableByAudioAudioBitrate();
     } else if (mode === 'year') {
         sortTableByYear();
     } else if (mode === 'duration') {

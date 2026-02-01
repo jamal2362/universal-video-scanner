@@ -16,6 +16,7 @@
   "sort_by_filesize": "💾 By file size",
   "sort_by_videobitrate": "📺 By video bitrate",
   "sort_by_audiobitrate": "🔈 By audio bitrate",
+  "sort_by_audio_audiobitrate": "🔊 Audio + Audio Bitrate",
   "sort_by_year": "📅 By year",
   "sort_by_duration": "⏱️ By duration",
   "sort_by_added": "📥 Added",
