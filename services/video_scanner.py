@@ -345,6 +345,96 @@ def get_video_resolution(video_file):
     return "Unknown"
 
 
+def get_audio_quality_rank(track_info):
+    """
+    Rank audio quality based on codec format.
+    Returns a numerical rank (higher is better).
+    
+    Ranking:
+    - TrueHD + Atmos: 100
+    - DTS:X: 90
+    - TrueHD: 80
+    - DTS-HD MA: 70
+    - DTS-HD HRA: 60
+    - EAC3 + Atmos/JOC: 55
+    - EAC3: 50
+    - AC-3: 40
+    - DTS: 35
+    - AAC: 30
+    - Other: 0
+    """
+    # Extract format information from track_info
+    # MediaInfo track format
+    format_commercial = track_info.get('Format_Commercial_IfAny', '').lower()
+    format_name = track_info.get('Format', '').lower()
+    format_additional = track_info.get('Format_AdditionalFeatures', '').lower()
+    title = track_info.get('Title', '').lower()
+    
+    # FFprobe stream format
+    codec_name = track_info.get('codec_name', '').lower()
+    profile = track_info.get('profile', '').lower()
+    tags = track_info.get('tags', {})
+    if isinstance(tags, dict):
+        title_from_tags = tags.get('title', '').lower()
+        title = title if title else title_from_tags
+    
+    # Check for Atmos
+    is_atmos = ('atmos' in format_commercial or 'atmos' in format_additional or 
+                'atmos' in title or 'atmos' in profile)
+    
+    # Check for DTS:X
+    is_dtsx = ('dts:x' in format_commercial or 'dts-x' in format_commercial or
+               'dts xll x' in format_name or 'xll x' in format_name or
+               'dts:x' in format_additional or 'dts:x' in title or 'dts-x' in title or
+               'dtsx' in title)
+    
+    # TrueHD + Atmos
+    if ('truehd' in format_name or 'mlp fba' in format_name or codec_name == 'truehd') and is_atmos:
+        return 100
+    
+    # DTS:X
+    if is_dtsx or ('dts' in format_name or codec_name in ['dts', 'dca']):
+        if is_dtsx:
+            return 90
+    
+    # TrueHD
+    if 'truehd' in format_name or 'mlp fba' in format_name or codec_name == 'truehd':
+        return 80
+    
+    # DTS-HD MA
+    if ('dts xll' in format_name or 'dts-hd master audio' in format_commercial or
+        'ma' in profile or 'dts-hd ma' in title or 'dts-hd master audio' in title):
+        return 70
+    
+    # DTS-HD HRA
+    if ('dts xbr' in format_name or 'dts-hd high resolution' in format_commercial or
+        'hra' in profile or 'dts-hd hra' in title or 'dts-hd high resolution' in title):
+        return 60
+    
+    # EAC3 + Atmos/JOC
+    if ('e-ac-3' in format_name or codec_name == 'eac3') and is_atmos:
+        return 55
+    
+    # EAC3
+    if 'e-ac-3' in format_name or codec_name == 'eac3':
+        return 50
+    
+    # AC-3
+    if 'ac-3' in format_name or codec_name == 'ac3':
+        return 40
+    
+    # DTS
+    if 'dts' in format_name or codec_name in ['dts', 'dca']:
+        return 35
+    
+    # AAC
+    if 'aac' in format_name or codec_name == 'aac':
+        return 30
+    
+    # Other formats
+    return 0
+
+
 def get_audio_info_mediainfo(video_file):
     """Get audio information using MediaInfo"""
     try:
@@ -500,9 +590,9 @@ def get_audio_bitrate(video_file):
         if result.returncode == 0:
             data = json.loads(result.stdout)
             if 'streams' in data and len(data['streams']) > 0:
-                # Try to find preferred language audio track first, then English, then first track
-                preferred_stream = None
-                english_stream = None
+                # Collect all preferred language tracks, English tracks, and first track
+                preferred_streams = []
+                english_streams = []
                 first_stream = None
 
                 for stream in data['streams']:
@@ -513,17 +603,25 @@ def get_audio_bitrate(video_file):
                         first_stream = stream
 
                     if language in preferred_lang_codes:
-                        preferred_stream = stream
-                        # If preferred language is English, also set english_stream
+                        preferred_streams.append(stream)
+                        # If preferred language is English, also add to english_streams
                         if language in english_lang_codes:
-                            english_stream = stream
-                        break
+                            english_streams.append(stream)
 
-                    if english_stream is None and language in english_lang_codes:
-                        english_stream = stream
+                    elif language in english_lang_codes:
+                        english_streams.append(stream)
 
-                # Use preferred language track if found, otherwise English, otherwise first track
-                selected_stream = preferred_stream if preferred_stream else (english_stream if english_stream else first_stream)
+                # Select the best quality track from preferred language, otherwise English, otherwise first track
+                selected_stream = None
+                if preferred_streams:
+                    # Sort by quality rank (highest first) and select the best
+                    preferred_streams.sort(key=lambda s: get_audio_quality_rank(s), reverse=True)
+                    selected_stream = preferred_streams[0]
+                elif english_streams:
+                    english_streams.sort(key=lambda s: get_audio_quality_rank(s), reverse=True)
+                    selected_stream = english_streams[0]
+                else:
+                    selected_stream = first_stream
 
                 if selected_stream:
                     tags = selected_stream.get('tags', {})
@@ -576,25 +674,33 @@ def get_audio_bitrate(video_file):
             if data.get('media') and 'track' in data['media']:
                 audio_tracks = [track for track in data['media']['track'] if track.get('@type') == 'Audio']
                 if audio_tracks:
-                    # Try to find preferred language audio track first, then English, then first track
-                    preferred_track = None
-                    english_track = None
+                    # Collect all preferred language tracks, English tracks, and first track
+                    preferred_tracks = []
+                    english_tracks = []
                     first_track = audio_tracks[0] if audio_tracks else None
 
                     for track in audio_tracks:
                         language = track.get('Language', '').lower()
 
                         if language in preferred_lang_codes:
-                            preferred_track = track
+                            preferred_tracks.append(track)
                             if language in english_lang_codes:
-                                english_track = track
-                            break
+                                english_tracks.append(track)
 
-                        if english_track is None and language in english_lang_codes:
-                            english_track = track
+                        elif language in english_lang_codes:
+                            english_tracks.append(track)
 
-                    # Use preferred language track if found, otherwise English, otherwise first track
-                    selected_track = preferred_track if preferred_track else (english_track if english_track else first_track)
+                    # Select the best quality track from preferred language, otherwise English, otherwise first track
+                    selected_track = None
+                    if preferred_tracks:
+                        # Sort by quality rank (highest first) and select the best
+                        preferred_tracks.sort(key=lambda t: get_audio_quality_rank(t), reverse=True)
+                        selected_track = preferred_tracks[0]
+                    elif english_tracks:
+                        english_tracks.sort(key=lambda t: get_audio_quality_rank(t), reverse=True)
+                        selected_track = english_tracks[0]
+                    else:
+                        selected_track = first_track
 
                     if selected_track:
                         # Try BitRate field (in bit/s)
@@ -623,9 +729,9 @@ def get_audio_codec(video_file):
     # DTS:X)
     audio_tracks = get_audio_info_mediainfo(video_file)
     if audio_tracks:
-        # Try to find preferred language audio track first, then English, then first track
-        preferred_track = None
-        english_track = None
+        # Collect all preferred language tracks, English tracks, and first track
+        preferred_tracks = []
+        english_tracks = []
         first_track = None
 
         for track in audio_tracks:
@@ -635,17 +741,25 @@ def get_audio_codec(video_file):
                 first_track = track
 
             if language in preferred_lang_codes:
-                preferred_track = track
-                # If preferred language is English, also set english_track
+                preferred_tracks.append(track)
+                # If preferred language is English, also add to english_tracks
                 if language in english_lang_codes:
-                    english_track = track
-                break
+                    english_tracks.append(track)
 
-            if english_track is None and language in english_lang_codes:
-                english_track = track
+            elif language in english_lang_codes:
+                english_tracks.append(track)
 
-        # Use preferred language track if found, otherwise English, otherwise first track
-        selected_track = preferred_track if preferred_track else (english_track if english_track else first_track)
+        # Select the best quality track from preferred language, otherwise English, otherwise first track
+        selected_track = None
+        if preferred_tracks:
+            # Sort by quality rank (highest first) and select the best
+            preferred_tracks.sort(key=lambda t: get_audio_quality_rank(t), reverse=True)
+            selected_track = preferred_tracks[0]
+        elif english_tracks:
+            english_tracks.sort(key=lambda t: get_audio_quality_rank(t), reverse=True)
+            selected_track = english_tracks[0]
+        else:
+            selected_track = first_track
 
         if selected_track:
             # Extract format information from MediaInfo
@@ -744,9 +858,9 @@ def get_audio_codec(video_file):
         if result.returncode == 0:
             data = json.loads(result.stdout)
             if 'streams' in data and len(data['streams']) > 0:
-                # Try to find preferred language audio track first, then English, then first track
-                preferred_stream = None
-                english_stream = None
+                # Collect all preferred language tracks, English tracks, and first track
+                preferred_streams = []
+                english_streams = []
                 first_stream = None
 
                 for stream in data['streams']:
@@ -757,17 +871,25 @@ def get_audio_codec(video_file):
                         first_stream = stream
 
                     if language in preferred_lang_codes:
-                        preferred_stream = stream
-                        # If preferred language is English, also set english_stream
+                        preferred_streams.append(stream)
+                        # If preferred language is English, also add to english_streams
                         if language in english_lang_codes:
-                            english_stream = stream
-                        break
+                            english_streams.append(stream)
 
-                    if english_stream is None and language in english_lang_codes:
-                        english_stream = stream
+                    elif language in english_lang_codes:
+                        english_streams.append(stream)
 
-                # Use preferred language track if found, otherwise English, otherwise first track
-                selected_stream = preferred_stream if preferred_stream else (english_stream if english_stream else first_stream)
+                # Select the best quality track from preferred language, otherwise English, otherwise first track
+                selected_stream = None
+                if preferred_streams:
+                    # Sort by quality rank (highest first) and select the best
+                    preferred_streams.sort(key=lambda s: get_audio_quality_rank(s), reverse=True)
+                    selected_stream = preferred_streams[0]
+                elif english_streams:
+                    english_streams.sort(key=lambda s: get_audio_quality_rank(s), reverse=True)
+                    selected_stream = english_streams[0]
+                else:
+                    selected_stream = first_stream
 
                 codec_name = selected_stream.get('codec_name', 'Unknown')
                 profile = selected_stream.get('profile', '').lower()
