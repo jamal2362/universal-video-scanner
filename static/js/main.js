@@ -830,6 +830,31 @@ function sortTableByNumericAttribute(attribute) {
     rows.forEach(r => tbody.appendChild(r));
 }
 
+function sortTableByAdded() {
+    const table = document.getElementById('mediaTable');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    // Sort by file modification time (descending - newest first)
+    rows.sort((a, b) => {
+        const aMtime = parseFloat(a.getAttribute('data-mtime') || 0);
+        const bMtime = parseFloat(b.getAttribute('data-mtime') || 0);
+        
+        // Sort descending (newest first)
+        if (bMtime !== aMtime) return bMtime - aMtime;
+        
+        // If same, sort secondarily by filename
+        const aName = getFilenameFromRow(a).toLowerCase();
+        const bName = getFilenameFromRow(b).toLowerCase();
+        if (aName < bName) return -1;
+        if (aName > bName) return 1;
+        return 0;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+}
+
 function applySort(mode) {
     if (!mode) mode = localStorage.getItem('dovi_sort_mode') || 'filename';
     const select = document.getElementById('sortSelect');
@@ -857,6 +882,8 @@ function applySort(mode) {
         sortTableByYear();
     } else if (mode === 'duration') {
         sortTableByDuration();
+    } else if (mode === 'added') {
+        sortTableByAdded();
     } else {
         sortTableByFilename();
     }

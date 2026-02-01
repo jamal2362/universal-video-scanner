@@ -55,6 +55,7 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                     <select id="sortSelect" data-aria-label-i18n="sort_label">
                         <option value="filename" data-i18n="sort_by_filename"></option>
                         <option value="filesize" data-i18n="sort_by_filesize"></option>
+                        <option value="added" data-i18n="sort_by_added"></option>
                         <option value="rating" data-i18n="sort_by_rating"></option>
                         <option value="year" data-i18n="sort_by_year"></option>
                         <option value="duration" data-i18n="sort_by_duration"></option>
@@ -113,7 +114,8 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                     data-video-bitrate="{{ file.video_bitrate|default('0') }}" 
                     data-audio-bitrate="{{ file.audio_bitrate|default('0') }}"
                     data-year="{{ file.tmdb_year|default('') }}"
-                    data-duration="{{ file.duration|default('') }}">
+                    data-duration="{{ file.duration|default('') }}"
+                    data-mtime="{{ file.mtime|default('0') }}">
                     <td data-label-i18n="table_header_poster" data-label="Poster / Dateiname" title="{{ file.filename }}">
                         {% if file.poster_url %}
                         <div class="poster-container" 
