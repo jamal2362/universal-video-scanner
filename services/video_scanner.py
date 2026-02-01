@@ -494,20 +494,146 @@ def get_channel_count(track_or_stream, is_mediainfo=True):
         return track_or_stream.get('channels', 0) or 0
 
 
+def get_codec_quality_score(track_or_stream, is_mediainfo=True):
+    """
+    Get a quality score for an audio codec. Higher score = better quality.
+    
+    Args:
+        track_or_stream: MediaInfo track dict or ffprobe stream dict
+        is_mediainfo: True if MediaInfo track, False if ffprobe stream
+        
+    Returns:
+        int: Quality score (higher is better)
+    """
+    if is_mediainfo:
+        format_commercial = track_or_stream.get('Format_Commercial_IfAny', '').upper()
+        format_name = track_or_stream.get('Format', '').upper()
+        format_additional = track_or_stream.get('Format_AdditionalFeatures', '').upper()
+        title = track_or_stream.get('Title', '').upper()
+        
+        # Check for special formats (object-based audio)
+        # Dolby Atmos variants
+        if 'DOLBY ATMOS' in format_commercial or 'ATMOS' in format_commercial:
+            if 'TRUEHD' in format_name or 'TRUEHD' in format_commercial or 'MLP FBA' in format_name:
+                return 1000  # TrueHD Atmos - best Dolby format
+            elif 'E-AC-3' in format_name or 'E-AC-3' in format_commercial:
+                return 900  # E-AC-3 Atmos
+            elif 'AC-3' in format_name:
+                return 800  # AC-3 Atmos (rare)
+            else:
+                return 950  # Generic Atmos
+        
+        # DTS:X variants
+        if ('DTS:X' in format_commercial or 'DTS-X' in format_commercial or
+            'DTS XLL X' in format_name or 'XLL X' in format_name or
+            'DTS:X' in format_additional or 'DTS:X' in title or 'DTS-X' in title):
+            return 950  # DTS:X - comparable to Atmos
+        
+        # Lossless codecs
+        if 'DTS XLL' in format_name or 'DTS-HD MASTER AUDIO' in format_commercial:
+            return 700  # DTS-HD MA - lossless
+        if 'TRUEHD' in format_name or 'MLP FBA' in format_name:
+            return 700  # TrueHD - lossless
+        if format_name == 'FLAC':
+            return 650  # FLAC - lossless
+        if format_name == 'PCM':
+            return 650  # PCM - uncompressed
+        
+        # High-resolution lossy codecs
+        if 'DTS XBR' in format_name or 'DTS-HD HIGH RESOLUTION' in format_commercial:
+            return 600  # DTS-HD HRA
+        if 'DTS-HD' in format_commercial:
+            return 550  # Generic DTS-HD
+        
+        # Standard lossy codecs
+        if format_name == 'DTS':
+            return 500  # DTS
+        if 'E-AC-3' in format_name or 'E-AC-3' in format_commercial:
+            return 400  # Dolby Digital Plus
+        if format_name == 'AC-3':
+            return 300  # Dolby Digital
+        if format_name == 'AAC':
+            return 250  # AAC
+        if format_name == 'OPUS':
+            return 200  # Opus
+        if format_name == 'VORBIS':
+            return 150  # Vorbis
+        if 'MPEG AUDIO' in format_name:
+            return 100  # MP3
+        
+        # Unknown or other formats
+        return 0
+    else:
+        # ffprobe stream
+        codec_name = track_or_stream.get('codec_name', '').lower()
+        profile = track_or_stream.get('profile', '').lower()
+        tags = track_or_stream.get('tags', {})
+        title = tags.get('title', '').lower()
+        
+        # Check for Atmos
+        is_atmos = 'atmos' in title or 'atmos' in profile
+        
+        # Check for DTS:X
+        is_dtsx = 'dts:x' in title or 'dtsx' in title or 'dts-x' in title
+        
+        # Codec-based scoring
+        if codec_name == 'truehd':
+            return 1000 if is_atmos else 700
+        elif codec_name == 'eac3':
+            return 900 if is_atmos else 400
+        elif codec_name == 'ac3':
+            return 800 if is_atmos else 300
+        elif codec_name in ['dts', 'dca']:
+            if is_dtsx:
+                return 950
+            elif 'ma' in profile or 'dts-hd ma' in title or 'dts-hd master audio' in title:
+                return 700
+            elif 'hra' in profile or 'dts-hd hra' in title or 'dts-hd high resolution' in title:
+                return 600
+            elif 'hd' in profile or 'dts-hd' in title:
+                return 550
+            else:
+                return 500
+        elif codec_name == 'flac':
+            return 650
+        elif codec_name.startswith('pcm'):
+            return 650
+        elif codec_name == 'aac':
+            return 250
+        elif codec_name == 'opus':
+            return 200
+        elif codec_name == 'vorbis':
+            return 150
+        elif codec_name == 'mp3':
+            return 100
+        
+        # Unknown codec
+        return 0
+
+
 def get_best_audio_track(tracks, is_mediainfo=True):
     """
-    Get the audio track with the highest channel count from a list of tracks.
+    Get the best audio track from a list, prioritizing codec quality over channel count.
+    
+    Selection criteria (in order):
+    1. Codec quality (lossless > high-res lossy > standard lossy)
+    2. Channel count (7.1 > 5.1 > stereo)
     
     Args:
         tracks: List of MediaInfo tracks or ffprobe streams
         is_mediainfo: True if MediaInfo tracks, False if ffprobe streams
         
     Returns:
-        The track/stream with highest channel count, or None if list is empty
+        The best track/stream, or None if list is empty
     """
     if not tracks:
         return None
-    return max(tracks, key=lambda t: get_channel_count(t, is_mediainfo=is_mediainfo))
+    
+    # Sort by quality score (descending), then by channel count (descending)
+    return max(tracks, key=lambda t: (
+        get_codec_quality_score(t, is_mediainfo=is_mediainfo),
+        get_channel_count(t, is_mediainfo=is_mediainfo)
+    ))
 
 
 def get_audio_bitrate(video_file):
