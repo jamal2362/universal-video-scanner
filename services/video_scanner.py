@@ -511,33 +511,39 @@ def get_codec_quality_score(track_or_stream, is_mediainfo=True):
         format_additional = track_or_stream.get('Format_AdditionalFeatures', '').upper()
         title = track_or_stream.get('Title', '').upper()
         
-        # Check for special formats (object-based audio)
-        # Dolby Atmos variants
-        if 'DOLBY ATMOS' in format_commercial or 'ATMOS' in format_commercial:
-            if 'TRUEHD' in format_name or 'TRUEHD' in format_commercial or 'MLP FBA' in format_name:
-                return 1000  # TrueHD Atmos - best Dolby format
-            elif 'E-AC-3' in format_name or 'E-AC-3' in format_commercial:
-                return 900  # E-AC-3 Atmos
-            elif 'AC-3' in format_name:
-                return 800  # AC-3 Atmos (rare)
-            else:
-                return 950  # Generic Atmos
+        # Check for DTS:X variants (check before other DTS formats)
+        is_dtsx = ('DTS:X' in format_commercial or 'DTS-X' in format_commercial or
+                   'DTS XLL X' in format_name or 'XLL X' in format_name or
+                   'DTS:X' in format_additional or 'DTS:X' in title or 'DTS-X' in title)
         
-        # DTS:X variants
-        if ('DTS:X' in format_commercial or 'DTS-X' in format_commercial or
-            'DTS XLL X' in format_name or 'XLL X' in format_name or
-            'DTS:X' in format_additional or 'DTS:X' in title or 'DTS-X' in title):
-            return 950  # DTS:X - comparable to Atmos
+        # Check for Dolby Atmos variants (check before other Dolby formats)
+        is_atmos = 'DOLBY ATMOS' in format_commercial or 'ATMOS' in format_commercial
         
-        # Lossless codecs
+        # Object-based audio with lossless base codec (highest quality)
+        if is_atmos and ('TRUEHD' in format_name or 'TRUEHD' in format_commercial or 'MLP FBA' in format_name):
+            return 1000  # TrueHD Atmos
+        if is_dtsx and ('DTS XLL' in format_name or 'DTS-HD MASTER AUDIO' in format_commercial):
+            return 1000  # DTS-HD MA with DTS:X
+        
+        # Object-based audio with lossy base codec
+        if is_dtsx:
+            return 950  # DTS:X (non-MA variant)
+        if is_atmos and ('E-AC-3' in format_name or 'E-AC-3' in format_commercial):
+            return 900  # E-AC-3 Atmos
+        if is_atmos and 'AC-3' in format_name:
+            return 850  # AC-3 Atmos (rare)
+        if is_atmos:
+            return 900  # Generic Atmos (assume E-AC-3 quality)
+        
+        # Lossless codecs (no object-based audio)
         if 'DTS XLL' in format_name or 'DTS-HD MASTER AUDIO' in format_commercial:
-            return 700  # DTS-HD MA - lossless
+            return 700  # DTS-HD MA
         if 'TRUEHD' in format_name or 'MLP FBA' in format_name:
-            return 700  # TrueHD - lossless
+            return 700  # TrueHD
         if format_name == 'FLAC':
-            return 650  # FLAC - lossless
+            return 650  # FLAC
         if format_name == 'PCM':
-            return 650  # PCM - uncompressed
+            return 650  # PCM
         
         # High-resolution lossy codecs
         if 'DTS XBR' in format_name or 'DTS-HD HIGH RESOLUTION' in format_commercial:
@@ -570,10 +576,8 @@ def get_codec_quality_score(track_or_stream, is_mediainfo=True):
         tags = track_or_stream.get('tags', {})
         title = tags.get('title', '').lower()
         
-        # Check for Atmos
+        # Check for object-based audio formats
         is_atmos = 'atmos' in title or 'atmos' in profile
-        
-        # Check for DTS:X
         is_dtsx = 'dts:x' in title or 'dtsx' in title or 'dts-x' in title
         
         # Codec-based scoring
@@ -582,18 +586,25 @@ def get_codec_quality_score(track_or_stream, is_mediainfo=True):
         elif codec_name == 'eac3':
             return 900 if is_atmos else 400
         elif codec_name == 'ac3':
-            return 800 if is_atmos else 300
+            return 850 if is_atmos else 300
         elif codec_name in ['dts', 'dca']:
-            if is_dtsx:
-                return 950
-            elif 'ma' in profile or 'dts-hd ma' in title or 'dts-hd master audio' in title:
-                return 700
-            elif 'hra' in profile or 'dts-hd hra' in title or 'dts-hd high resolution' in title:
-                return 600
-            elif 'hd' in profile or 'dts-hd' in title:
-                return 550
+            # Check for DTS variants
+            is_ma = 'ma' in profile or 'dts-hd ma' in title or 'dts-hd master audio' in title
+            is_hra = 'hra' in profile or 'dts-hd hra' in title or 'dts-hd high resolution' in title
+            is_hd = 'hd' in profile or 'dts-hd' in title
+            
+            if is_dtsx and is_ma:
+                return 1000  # DTS-HD MA with DTS:X
+            elif is_dtsx:
+                return 950  # DTS:X (non-MA)
+            elif is_ma:
+                return 700  # DTS-HD MA
+            elif is_hra:
+                return 600  # DTS-HD HRA
+            elif is_hd:
+                return 550  # Generic DTS-HD
             else:
-                return 500
+                return 500  # Standard DTS
         elif codec_name == 'flac':
             return 650
         elif codec_name.startswith('pcm'):
