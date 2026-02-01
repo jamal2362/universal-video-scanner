@@ -12,6 +12,7 @@
   "sort_by_profile_videobitrate": "🎞️ HDR-Typ + Videobitrate",
   "sort_by_profile_audiobitrate": "🎞️ HDR-Typ + Audiobitrate",
   "sort_by_audio": "🔊 Tonspur",
+  "sort_by_audio_audiobitrate": "🔊 Tonspur + Audiobitrate",
   "sort_by_rating": "⭐ Bewertung",
   "sort_by_filesize": "💾 Dateigröße",
   "sort_by_videobitrate": "📺 Videobitrate",
