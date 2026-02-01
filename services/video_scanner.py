@@ -382,9 +382,9 @@ def get_audio_quality_rank(track_info):
     is_atmos = ('atmos' in format_commercial or 'atmos' in format_additional or 
                 'atmos' in title or 'atmos' in profile)
     
-    # Check for DTS:X
+    # Check for DTS:X - More specific patterns to avoid false positives
     is_dtsx = ('dts:x' in format_commercial or 'dts-x' in format_commercial or
-               'dts xll x' in format_name or 'xll x' in format_name or
+               'dts xll x' in format_name or  # DTS:X specific pattern
                'dts:x' in format_additional or 'dts:x' in title or 'dts-x' in title or
                'dtsx' in title)
     
@@ -401,7 +401,9 @@ def get_audio_quality_rank(track_info):
         return 80
     
     # DTS-HD MA - Use exact profile matching
-    if ('dts xll' in format_name or 'dts-hd master audio' in format_commercial or
+    # Check for 'dts xll' but not 'dts xll x' (which is DTS:X)
+    if (('dts xll' in format_name and 'dts xll x' not in format_name) or 
+        'dts-hd master audio' in format_commercial or
         profile == 'ma' or profile == 'dts-hd ma' or 'dts-hd ma' in title or 'dts-hd master audio' in title):
         return 70
     
@@ -613,12 +615,10 @@ def get_audio_bitrate(video_file):
                 # Select the best quality track from preferred language, otherwise English, otherwise first track
                 selected_stream = None
                 if preferred_streams:
-                    # Sort by quality rank (highest first) and select the best
-                    preferred_streams.sort(key=lambda s: get_audio_quality_rank(s), reverse=True)
-                    selected_stream = preferred_streams[0]
+                    # Use max() for O(n) performance instead of sorting O(n log n)
+                    selected_stream = max(preferred_streams, key=get_audio_quality_rank)
                 elif english_streams:
-                    english_streams.sort(key=lambda s: get_audio_quality_rank(s), reverse=True)
-                    selected_stream = english_streams[0]
+                    selected_stream = max(english_streams, key=get_audio_quality_rank)
                 else:
                     selected_stream = first_stream
 
@@ -692,12 +692,10 @@ def get_audio_bitrate(video_file):
                     # Select the best quality track from preferred language, otherwise English, otherwise first track
                     selected_track = None
                     if preferred_tracks:
-                        # Sort by quality rank (highest first) and select the best
-                        preferred_tracks.sort(key=lambda t: get_audio_quality_rank(t), reverse=True)
-                        selected_track = preferred_tracks[0]
+                        # Use max() for O(n) performance instead of sorting O(n log n)
+                        selected_track = max(preferred_tracks, key=get_audio_quality_rank)
                     elif english_tracks:
-                        english_tracks.sort(key=lambda t: get_audio_quality_rank(t), reverse=True)
-                        selected_track = english_tracks[0]
+                        selected_track = max(english_tracks, key=get_audio_quality_rank)
                     else:
                         selected_track = first_track
 
@@ -751,12 +749,10 @@ def get_audio_codec(video_file):
         # Select the best quality track from preferred language, otherwise English, otherwise first track
         selected_track = None
         if preferred_tracks:
-            # Sort by quality rank (highest first) and select the best
-            preferred_tracks.sort(key=lambda t: get_audio_quality_rank(t), reverse=True)
-            selected_track = preferred_tracks[0]
+            # Use max() for O(n) performance instead of sorting O(n log n)
+            selected_track = max(preferred_tracks, key=get_audio_quality_rank)
         elif english_tracks:
-            english_tracks.sort(key=lambda t: get_audio_quality_rank(t), reverse=True)
-            selected_track = english_tracks[0]
+            selected_track = max(english_tracks, key=get_audio_quality_rank)
         else:
             selected_track = first_track
 
@@ -881,12 +877,10 @@ def get_audio_codec(video_file):
                 # Select the best quality track from preferred language, otherwise English, otherwise first track
                 selected_stream = None
                 if preferred_streams:
-                    # Sort by quality rank (highest first) and select the best
-                    preferred_streams.sort(key=lambda s: get_audio_quality_rank(s), reverse=True)
-                    selected_stream = preferred_streams[0]
+                    # Use max() for O(n) performance instead of sorting O(n log n)
+                    selected_stream = max(preferred_streams, key=get_audio_quality_rank)
                 elif english_streams:
-                    english_streams.sort(key=lambda s: get_audio_quality_rank(s), reverse=True)
-                    selected_stream = english_streams[0]
+                    selected_stream = max(english_streams, key=get_audio_quality_rank)
                 else:
                     selected_stream = first_stream
 
