@@ -773,7 +773,7 @@ function sortTableByAudioAudioBitrate() {
         const bRank = getAudioRank(bAudio);
         
         if (aRank !== bRank) return aRank - bRank;
-		
+        
         const aChannels = getChannelCount(aAudio);
         const bChannels = getChannelCount(bAudio);
         if (aChannels !== bChannels) return bChannels - aChannels;
