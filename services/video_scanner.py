@@ -392,23 +392,22 @@ def get_audio_quality_rank(track_info):
     if ('truehd' in format_name or 'mlp fba' in format_name or codec_name == 'truehd') and is_atmos:
         return 100
     
-    # DTS:X
-    if is_dtsx or ('dts' in format_name or codec_name in ['dts', 'dca']):
-        if is_dtsx:
-            return 90
+    # DTS:X - Check this before other DTS variants
+    if is_dtsx:
+        return 90
     
     # TrueHD
     if 'truehd' in format_name or 'mlp fba' in format_name or codec_name == 'truehd':
         return 80
     
-    # DTS-HD MA
+    # DTS-HD MA - Use more specific checks for profile
     if ('dts xll' in format_name or 'dts-hd master audio' in format_commercial or
-        'ma' in profile or 'dts-hd ma' in title or 'dts-hd master audio' in title):
+        profile in ['ma', 'dts-hd ma'] or 'dts-hd ma' in title or 'dts-hd master audio' in title):
         return 70
     
-    # DTS-HD HRA
+    # DTS-HD HRA - Use more specific checks for profile
     if ('dts xbr' in format_name or 'dts-hd high resolution' in format_commercial or
-        'hra' in profile or 'dts-hd hra' in title or 'dts-hd high resolution' in title):
+        profile in ['hra', 'dts-hd hra'] or 'dts-hd hra' in title or 'dts-hd high resolution' in title):
         return 60
     
     # EAC3 + Atmos/JOC
@@ -423,7 +422,7 @@ def get_audio_quality_rank(track_info):
     if 'ac-3' in format_name or codec_name == 'ac3':
         return 40
     
-    # DTS
+    # DTS (regular)
     if 'dts' in format_name or codec_name in ['dts', 'dca']:
         return 35
     
