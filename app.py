@@ -71,9 +71,9 @@ def index():
     # Add modification time for sorting
     for file_info in files_list:
         file_path = file_info.get('path', '')
-        if file_path and os.path.exists(file_path):
+        try:
             file_info['mtime'] = os.path.getmtime(file_path)
-        else:
+        except (OSError, TypeError):
             file_info['mtime'] = 0
     
     # Sort by filename
