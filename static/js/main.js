@@ -830,6 +830,56 @@ function sortTableByNumericAttribute(attribute) {
     rows.forEach(r => tbody.appendChild(r));
 }
 
+function sortTableByAddedNewest() {
+    const table = document.getElementById('mediaTable');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    // Sort by data-added-date if available, otherwise by original row index (descending)
+    rows.sort((a, b) => {
+        const aDate = a.getAttribute('data-added-date') || a.getAttribute('data-row-index') || 0;
+        const bDate = b.getAttribute('data-added-date') || b.getAttribute('data-row-index') || 0;
+        
+        // Sort descending (newest first)
+        if (bDate !== aDate) return bDate - aDate;
+        
+        // If same, sort secondarily by filename
+        const aName = getFilenameFromRow(a).toLowerCase();
+        const bName = getFilenameFromRow(b).toLowerCase();
+        if (aName < bName) return -1;
+        if (aName > bName) return 1;
+        return 0;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+}
+
+function sortTableByAddedOldest() {
+    const table = document.getElementById('mediaTable');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    // Sort by data-added-date if available, otherwise by original row index (ascending)
+    rows.sort((a, b) => {
+        const aDate = a.getAttribute('data-added-date') || a.getAttribute('data-row-index') || 0;
+        const bDate = b.getAttribute('data-added-date') || b.getAttribute('data-row-index') || 0;
+        
+        // Sort ascending (oldest first)
+        if (aDate !== bDate) return aDate - bDate;
+        
+        // If same, sort secondarily by filename
+        const aName = getFilenameFromRow(a).toLowerCase();
+        const bName = getFilenameFromRow(b).toLowerCase();
+        if (aName < bName) return -1;
+        if (aName > bName) return 1;
+        return 0;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+}
+
 function applySort(mode) {
     if (!mode) mode = localStorage.getItem('dovi_sort_mode') || 'filename';
     const select = document.getElementById('sortSelect');
@@ -857,6 +907,10 @@ function applySort(mode) {
         sortTableByYear();
     } else if (mode === 'duration') {
         sortTableByDuration();
+    } else if (mode === 'added_newest') {
+        sortTableByAddedNewest();
+    } else if (mode === 'added_oldest') {
+        sortTableByAddedOldest();
     } else {
         sortTableByFilename();
     }
