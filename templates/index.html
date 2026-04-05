@@ -41,6 +41,12 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                     <button id="scanButton" onclick="startManualScan()">
                         <span id="scanButtonText" data-i18n="scan_all_button"></span>
                     </button>
+                    <div id="scanProgress" class="scan-progress" style="display: none;">
+                        <div class="scan-progress-bar-container">
+                            <div id="scanProgressBar" class="scan-progress-bar"></div>
+                        </div>
+                        <span id="scanProgressText" class="scan-progress-text">0%</span>
+                    </div>
                     <div id="loadingIndicator" class="loading">
                         <div class="spinner"></div>
                         <span data-i18n="scanning"></span>
@@ -133,6 +139,8 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                              data-directors="{{ file.tmdb_directors|default([])|join(', ') }}"
                              data-cast="{{ file.tmdb_cast|default([])|join(', ') }}"
                              data-filename="{{ file.filename }}"
+                             data-dv-cm-version="{{ file.dv_cm_version|default('') }}"
+                             data-path="{{ file.path }}"
                              onclick="showMediaDialogFromData(this)">
                             {% if file.tmdb_title %}
                             <span class="poster-title">
@@ -164,6 +172,8 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                               data-directors="{{ file.tmdb_directors|default([])|join(', ') }}"
                               data-cast="{{ file.tmdb_cast|default([])|join(', ') }}"
                               data-filename="{{ file.filename }}"
+                              data-dv-cm-version="{{ file.dv_cm_version|default('') }}"
+                              data-path="{{ file.path }}"
                               onclick="showMediaDialogFromData(this)">{{ file.filename }}</span>
                         {% endif %}
                     </td>
@@ -324,6 +334,10 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                     <span class="dialog-label" data-i18n="dialog_audio_bitrate"></span>
                     <span class="dialog-value" id="dialogAudioBitrate"></span>
                 </div>
+                <div class="dialog-info-item" id="dialogCmVersion" style="display: none;">
+                    <span class="dialog-label" data-i18n="dialog_cm_version"></span>
+                    <span class="dialog-value" id="dialogCmVersionText"></span>
+                </div>
                 <div class="dialog-info-item dialog-filename-item" id="dialogFilenameItem" style="display: none;">
                     <span class="dialog-label" data-i18n="dialog_filename"></span>
                     <span class="dialog-value" id="dialogFilename"></span>
@@ -334,6 +348,9 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                         <a id="dialogTmdbLink" class="dialog-link tmdb" href="#" target="_blank" rel="noopener noreferrer" style="display: none;">TMDb</a>
                         <a id="dialogTrailerLink" class="dialog-link youtube" href="#" target="_blank" rel="noopener noreferrer" style="display: none;">YouTube</a>
                     </div>
+                </div>
+                <div class="dialog-info-item" id="dialogDeleteContainer" style="display: none;">
+                    <button class="dialog-delete-btn" onclick="deleteCurrentEntry()" data-i18n="dialog_delete_entry"></button>
                 </div>
             </div>
         </div>
