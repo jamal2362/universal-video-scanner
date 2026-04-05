@@ -473,6 +473,13 @@ function getProfileRank(hdrFormat, hdrDetail, elType) {
     return 7;
 }
 
+function getCmVersionRank(cmVersion) {
+    const v = (cmVersion || '').toLowerCase().trim();
+    if (v === 'cmv4.0') return 0;
+    if (v === 'cmv2.9') return 1;
+    return 2;
+}
+
 function getFilenameFromRow(row) {
     // Try multiple places: title attribute, .poster-title, .filename-fallback
     const td = row.querySelector('td[data-label-i18n="table_header_poster"]');
@@ -743,6 +750,43 @@ function sortTableByAudio() {
     rows.forEach(r => tbody.appendChild(r));
 }
 
+function sortTableByCmVersion() {
+    const table = document.getElementById('mediaTable');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    rows.sort((a, b) => {
+        const aCmv = a.getAttribute('data-dv-cm-version') || '';
+        const bCmv = b.getAttribute('data-dv-cm-version') || '';
+
+        const aRank = getCmVersionRank(aCmv);
+        const bRank = getCmVersionRank(bCmv);
+
+        if (aRank !== bRank) return aRank - bRank;
+
+        const aFmt = a.getAttribute('data-hdr-format') || '';
+        const aDet = a.getAttribute('data-hdr-detail') || '';
+        const aEl  = a.getAttribute('data-el-type') || '';
+        const bFmt = b.getAttribute('data-hdr-format') || '';
+        const bDet = b.getAttribute('data-hdr-detail') || '';
+        const bEl  = b.getAttribute('data-el-type') || '';
+
+        const aProfileRank = getProfileRank(aFmt, aDet, aEl);
+        const bProfileRank = getProfileRank(bFmt, bDet, bEl);
+
+        if (aProfileRank !== bProfileRank) return aProfileRank - bProfileRank;
+
+        const aName = getFilenameFromRow(a).toLowerCase();
+        const bName = getFilenameFromRow(b).toLowerCase();
+        if (aName < bName) return -1;
+        if (aName > bName) return 1;
+        return 0;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+}
+
 function sortTableByRating() {
     sortTableByNumericAttribute('data-tmdb-rating');
 }
@@ -923,6 +967,8 @@ function applySort(mode) {
         sortTableByDuration();
     } else if (mode === 'added') {
         sortTableByAdded();
+    } else if (mode === 'cm_version') {
+        sortTableByCmVersion();
     } else {
         sortTableByFilename();
     }

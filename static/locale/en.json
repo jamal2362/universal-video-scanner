@@ -20,6 +20,7 @@
   "sort_by_year": "📅 Year",
   "sort_by_duration": "⏱️ Duration",
   "sort_by_added": "📥 Added",
+  "sort_by_cm_version": "🎯 CM Version",
   "sort_label": "Select sorting",
   "table_header_poster": "Poster / Filename",
   "table_header_hdr": "HDR Format",
