@@ -28,6 +28,7 @@
   "empty_title": "Keine Medien gefunden",
   "empty_description": "Lege Videodateien in den Ordner <code>media/</code>, um sie automatisch scannen zu lassen.",
   "scan_complete": "Scan abgeschlossen! {count} neue Datei(en) gefunden.",
+  "scan_progress": "Scanne {current}/{total}...",
   "no_new_files": "Keine neuen Dateien gefunden.",
   "scan_error": "Fehler beim Scannen",
   "file_scan_error": "Fehler beim Scannen der Datei",

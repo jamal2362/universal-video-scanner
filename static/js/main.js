@@ -102,6 +102,9 @@ function startManualScan() {
     const button = document.getElementById('scanButton');
     const buttonText = document.getElementById('scanButtonText');
     const message = document.getElementById('message');
+    const scanProgress = document.getElementById('scanProgress');
+    const scanProgressBar = document.getElementById('scanProgressBar');
+    const scanProgressText = document.getElementById('scanProgressText');
 
     // Disable button + blue background
     button.disabled = true;
@@ -109,34 +112,31 @@ function startManualScan() {
     buttonText.textContent = t('scanning');
     if (message) message.style.display = 'none';
 
+    // Show progress bar at 0%
+    if (scanProgress) {
+        scanProgressBar.style.width = '0%';
+        scanProgressText.textContent = '0%';
+        scanProgress.style.display = 'inline-flex';
+    }
+
     fetch('/scan', { method: 'POST' })
         .then(response => {
             if (!response.ok) throw new Error('Server error');
             return response.json();
         })
         .then(data => {
-            if (!message) return;
-
-            message.className = 'message';
-            if (data.new_files > 0) {
-                message.classList.add('success');
-                message.textContent = `✓ ${t('scan_complete', { count: data.new_files })}`;
-                setTimeout(() => location.reload(), 2000);
-            } else {
-                message.classList.add('info');
-                message.textContent = `ℹ ${t('no_new_files')}`;
-				setTimeout(() => location.reload(), 2000);
+            // Scan started in background - progress comes via SSE
+            if (!data.success) {
+                throw new Error(data.error || 'Unknown error');
             }
-            message.style.display = 'block';
         })
         .catch(error => {
+            if (scanProgress) scanProgress.style.display = 'none';
             if (!message) return;
             message.className = 'message error';
             message.textContent = `✗ ${t('scan_error')}`;
             message.style.display = 'block';
             console.error(error);
-        })
-        .finally(() => {
             button.disabled = false;
             button.classList.remove('scanning');
             buttonText.textContent = t('scan_all_button');
@@ -1180,6 +1180,60 @@ function setupSSE() {
             }
         } catch (error) {
             console.error('Error parsing deletion event:', error);
+        }
+    });
+
+    eventSource.addEventListener('scan_progress', function(e) {
+        try {
+            const data = JSON.parse(e.data);
+            const scanProgress = document.getElementById('scanProgress');
+            const scanProgressBar = document.getElementById('scanProgressBar');
+            const scanProgressText = document.getElementById('scanProgressText');
+            const button = document.getElementById('scanButton');
+            const buttonText = document.getElementById('scanButtonText');
+            const message = document.getElementById('message');
+
+            if (data.status === 'scanning') {
+                if (scanProgress) {
+                    scanProgressBar.style.width = data.percent + '%';
+                    scanProgressText.textContent = data.current + '/' + data.total + ' (' + data.percent + '%)';
+                    scanProgress.style.display = 'inline-flex';
+                }
+            } else if (data.status === 'done') {
+                if (scanProgress) scanProgress.style.display = 'none';
+                if (button) {
+                    button.disabled = false;
+                    button.classList.remove('scanning');
+                    buttonText.textContent = t('scan_all_button');
+                }
+                if (message) {
+                    message.className = 'message';
+                    if (data.new_files > 0) {
+                        message.classList.add('success');
+                        message.textContent = '\u2713 ' + t('scan_complete', { count: data.new_files });
+                        setTimeout(function() { location.reload(); }, 2000);
+                    } else {
+                        message.classList.add('info');
+                        message.textContent = '\u2139 ' + t('no_new_files');
+                        setTimeout(function() { location.reload(); }, 2000);
+                    }
+                    message.style.display = 'block';
+                }
+            } else if (data.status === 'error') {
+                if (scanProgress) scanProgress.style.display = 'none';
+                if (button) {
+                    button.disabled = false;
+                    button.classList.remove('scanning');
+                    buttonText.textContent = t('scan_all_button');
+                }
+                if (message) {
+                    message.className = 'message error';
+                    message.textContent = '\u2717 ' + t('scan_error');
+                    message.style.display = 'block';
+                }
+            }
+        } catch (error) {
+            console.error('Error parsing scan progress event:', error);
         }
     });
     

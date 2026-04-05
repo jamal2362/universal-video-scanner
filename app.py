@@ -35,8 +35,9 @@ app = Flask(__name__,
             template_folder=config.TEMPLATES_DIR,
             static_folder=config.STATIC_DIR)
 
-# Event queue for Server-Sent Events
+# Event queues for Server-Sent Events
 deletion_event_queue = queue.Queue()
+scan_progress_queue = queue.Queue()
 
 
 # Helper function wrappers to pass dependencies to scan_video_file
@@ -88,37 +89,58 @@ def index():
 
 @app.route('/scan', methods=['POST'])
 def manual_scan():
-    """Endpoint for manual scan trigger"""
-    try:
-        # Clean up database for non-existent files
-        removed_count = database.cleanup_database(config.DB_FILE, _delete_cached_poster_wrapper)
+    """Endpoint for manual scan trigger - runs scan in background with progress updates"""
+    def _run_scan():
+        try:
+            # Clean up database for non-existent files
+            removed_count = database.cleanup_database(config.DB_FILE, _delete_cached_poster_wrapper)
 
-        # Scan for new files
-        new_files = scan_directory(config.MEDIA_PATH, database.scanned_paths)
+            # Scan for new files
+            new_files = scan_directory(config.MEDIA_PATH, database.scanned_paths)
+            total = len(new_files)
 
-        # Scan each new file
-        scanned_new_count = 0
-        for file_path in new_files:
-            try:
-                result = _scan_video_file_wrapper(file_path)
-                if result and result.get('success', False):
-                    scanned_new_count += 1
-            except Exception as e:
-                print(f"Error scanning {file_path}: {e}")
+            if total == 0:
+                scan_progress_queue.put(json.dumps({
+                    'current': 0, 'total': 0, 'percent': 100,
+                    'status': 'done', 'new_files': 0,
+                    'removed_files': removed_count,
+                    'total_files': len(database.scanned_files)
+                }))
+                return
 
-        final_count = len(database.scanned_files)
+            # Scan each new file and send progress
+            scanned_new_count = 0
+            for i, file_path in enumerate(new_files, 1):
+                try:
+                    result = _scan_video_file_wrapper(file_path)
+                    if result and result.get('success', False):
+                        scanned_new_count += 1
+                except Exception as e:
+                    print(f"Error scanning {file_path}: {e}")
 
-        return jsonify({
-            'success': True,
-            'new_files': scanned_new_count,
-            'removed_files': removed_count,
-            'total_files': final_count
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+                percent = int((i / total) * 100)
+                scan_progress_queue.put(json.dumps({
+                    'current': i, 'total': total, 'percent': percent,
+                    'status': 'scanning',
+                    'filename': os.path.basename(file_path)
+                }))
+
+            final_count = len(database.scanned_files)
+            scan_progress_queue.put(json.dumps({
+                'current': total, 'total': total, 'percent': 100,
+                'status': 'done', 'new_files': scanned_new_count,
+                'removed_files': removed_count,
+                'total_files': final_count
+            }))
+        except Exception as e:
+            scan_progress_queue.put(json.dumps({
+                'status': 'error', 'error': str(e)
+            }))
+
+    thread = threading.Thread(target=_run_scan, daemon=True)
+    thread.start()
+
+    return jsonify({'success': True, 'message': 'Scan started'})
 
 
 @app.route('/get_files', methods=['GET'])
@@ -237,9 +259,17 @@ def events():
 
         while True:
             try:
+                # Check for scan progress events first (non-blocking)
+                try:
+                    progress_data = scan_progress_queue.get_nowait()
+                    yield f"event: scan_progress\ndata: {progress_data}\n\n"
+                    continue
+                except queue.Empty:
+                    pass
+
                 # Check for deletion events (non-blocking with timeout)
                 try:
-                    event_data = deletion_event_queue.get(timeout=1)
+                    event_data = deletion_event_queue.get(timeout=0.5)
                     yield f"event: file_deleted\ndata: {event_data}\n\n"
                 except queue.Empty:
                     # Send keep-alive every 30 seconds

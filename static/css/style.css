@@ -1052,6 +1052,41 @@ tbody tr:hover {
     animation: spin 0.9s linear infinite;
 }
 
+.scan-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background-color: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.03);
+    box-shadow: 0 4px 10px rgba(2,6,23,0.35);
+}
+
+.scan-progress-bar-container {
+    width: 120px;
+    height: 8px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.scan-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #4ecca3, #6495ED);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.scan-progress-text {
+    color: #cbd5e1;
+    font-size: 0.85em;
+    min-width: 38px;
+    text-align: right;
+    white-space: nowrap;
+}
+
 .media-dialog::-webkit-scrollbar {
     display: none;
 }

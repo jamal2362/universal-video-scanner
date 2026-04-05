@@ -41,6 +41,12 @@ Licensed under the MIT License. See LICENSE file in the project root for full li
                     <button id="scanButton" onclick="startManualScan()">
                         <span id="scanButtonText" data-i18n="scan_all_button"></span>
                     </button>
+                    <div id="scanProgress" class="scan-progress" style="display: none;">
+                        <div class="scan-progress-bar-container">
+                            <div id="scanProgressBar" class="scan-progress-bar"></div>
+                        </div>
+                        <span id="scanProgressText" class="scan-progress-text">0%</span>
+                    </div>
                     <div id="loadingIndicator" class="loading">
                         <div class="spinner"></div>
                         <span data-i18n="scanning"></span>
