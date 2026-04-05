@@ -4,6 +4,7 @@
 // i18n System
 let currentLang = 'de';
 let translations = {};
+let currentDialogFilePath = '';
 
 async function loadTranslations(lang) {
     try {
@@ -1264,7 +1265,7 @@ function formatFileSize(bytes) {
     return `${formattedSize} GB`;
 }
 
-function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, fileSize, posterUrl, tmdbId, plot, directors, cast, tmdbRating, filename) {
+function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, fileSize, posterUrl, tmdbId, plot, directors, cast, tmdbRating, filename, dvCmVersion, filePath) {
     const overlay = document.getElementById('mediaDialogOverlay');
     const dialogTitle = document.getElementById('dialogTitle');
     const dialogDuration = document.getElementById('dialogDuration');
@@ -1287,6 +1288,12 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     const dialogCastText = document.getElementById('dialogCastText');
     const dialogFilenameItem = document.getElementById('dialogFilenameItem');
     const dialogFilename = document.getElementById('dialogFilename');
+    const dialogCmVersion = document.getElementById('dialogCmVersion');
+    const dialogCmVersionText = document.getElementById('dialogCmVersionText');
+    const dialogDeleteContainer = document.getElementById('dialogDeleteContainer');
+
+    // Store current file path for delete
+    currentDialogFilePath = filePath || '';
     
     // Set title with year if available
     if (year && year !== '') {
@@ -1368,6 +1375,21 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
     } else {
         dialogAudioBitrate.textContent = t('unknown');
     }
+
+    // Show CM Version when available
+    if (dialogCmVersion && dialogCmVersionText) {
+        if (dvCmVersion && dvCmVersion !== '') {
+            dialogCmVersionText.textContent = dvCmVersion;
+            dialogCmVersion.style.display = 'flex';
+        } else {
+            dialogCmVersion.style.display = 'none';
+        }
+    }
+
+    // Show delete button when file path is available
+    if (dialogDeleteContainer) {
+        dialogDeleteContainer.style.display = currentDialogFilePath !== '' ? '' : 'none';
+    }
     
     // Set up links
     dialogTmdbLink.classList.remove(...dialogTmdbLink.classList);
@@ -1433,8 +1455,41 @@ function showMediaDialogFromData(element) {
     const directors = element.getAttribute('data-directors') || '';
     const cast = element.getAttribute('data-cast') || '';
     const filename = element.getAttribute('data-filename') || '';
+    const dvCmVersion = element.getAttribute('data-dv-cm-version') || '';
+    const filePath = element.getAttribute('data-path') || '';
     
-    showMediaDialog(title, year, duration, videoBitrate, audioBitrate, fileSize, posterUrl, tmdbId, plot, directors, cast, tmdbRating, filename);
+    showMediaDialog(title, year, duration, videoBitrate, audioBitrate, fileSize, posterUrl, tmdbId, plot, directors, cast, tmdbRating, filename, dvCmVersion, filePath);
+}
+
+async function deleteCurrentEntry() {
+    if (!currentDialogFilePath) return;
+
+    if (!window.confirm(t('delete_entry_confirm'))) return;
+
+    try {
+        const response = await fetch('/delete_entry', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({file_path: currentDialogFilePath})
+        });
+        const data = await response.json();
+        if (data.success) {
+            closeMediaDialog();
+            // Remove the row from the DOM by data-path attribute
+            const el = document.querySelector(`[data-path="${CSS.escape(currentDialogFilePath)}"]`);
+            if (el) {
+                const row = el.closest('tr');
+                if (row) row.remove();
+            }
+            updateFileCount();
+            updateProfileStats();
+            currentDialogFilePath = '';
+        } else {
+            alert(t('delete_entry_error') + ': ' + (data.error || ''));
+        }
+    } catch (e) {
+        alert(t('delete_entry_error') + ': ' + e.message);
+    }
 }
 
 function setupScrollButton() {

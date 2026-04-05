@@ -1349,3 +1349,23 @@ tbody tr:hover {
         text-align: center;
     }
 }
+
+.dialog-delete-btn {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+    width: 100%;
+    max-width: 300px;
+}
+
+.dialog-delete-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+}

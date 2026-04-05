@@ -288,6 +288,37 @@ def clear_database():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/delete_entry', methods=['POST'])
+def delete_entry():
+    """Delete a single entry from the scanned files database."""
+    try:
+        lang = get_request_language(request)
+        data = request.get_json()
+        file_path = data.get('file_path')
+
+        if not file_path:
+            return jsonify({'success': False, 'error': translate('api_no_file_path_provided', lang)}), 400
+
+        with database.scan_lock:
+            if file_path in database.scanned_files:
+                file_info = database.scanned_files[file_path]
+                _delete_cached_poster_wrapper(file_info)
+                del database.scanned_files[file_path]
+                database.scanned_paths.discard(file_path)
+                database.save_database(config.DB_FILE)
+
+                try:
+                    deletion_event_queue.put(json.dumps({'file_path': file_path}))
+                except Exception as e:
+                    print(f"Error queuing deletion event: {e}")
+
+                return jsonify({'success': True, 'total_files': len(database.scanned_files)})
+            else:
+                return jsonify({'success': False, 'error': translate('api_file_not_found', lang)}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 def main():
     """Main application entry point"""
     print("=" * 50)
