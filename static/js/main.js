@@ -1388,7 +1388,7 @@ function showMediaDialog(title, year, duration, videoBitrate, audioBitrate, file
 
     // Show delete button when file path is available
     if (dialogDeleteContainer) {
-        dialogDeleteContainer.style.display = currentDialogFilePath !== '' ? '' : 'none';
+        dialogDeleteContainer.style.display = currentDialogFilePath !== '' ? 'flex' : 'none';
     }
     
     // Set up links
@@ -1475,8 +1475,11 @@ async function deleteCurrentEntry() {
         const data = await response.json();
         if (data.success) {
             closeMediaDialog();
-            // Remove the row from the DOM by data-path attribute
-            const el = document.querySelector(`[data-path="${CSS.escape(currentDialogFilePath)}"]`);
+            // Remove the row from the DOM by data-path attribute on the poster/fallback element
+            const el = document.querySelector(
+                `.poster-container[data-path="${CSS.escape(currentDialogFilePath)}"], ` +
+                `.filename-fallback[data-path="${CSS.escape(currentDialogFilePath)}"]`
+            );
             if (el) {
                 const row = el.closest('tr');
                 if (row) row.remove();

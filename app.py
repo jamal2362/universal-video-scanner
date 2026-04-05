@@ -291,6 +291,7 @@ def clear_database():
 @app.route('/delete_entry', methods=['POST'])
 def delete_entry():
     """Delete a single entry from the scanned files database."""
+    lang = 'en'
     try:
         lang = get_request_language(request)
         data = request.get_json()
@@ -316,7 +317,8 @@ def delete_entry():
             else:
                 return jsonify({'success': False, 'error': translate('api_file_not_found', lang)}), 404
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        print(f"Error in delete_entry: {e}")
+        return jsonify({'success': False, 'error': translate('delete_entry_error', lang)}), 500
 
 
 def main():
