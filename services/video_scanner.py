@@ -96,9 +96,15 @@ def extract_dovi_metadata(video_file):
         profile = metadata.get('dovi_profile')
         el_type = metadata.get('el_type', '').upper()
 
-        raw_cm = metadata.get('cm_version', '')
-        cm_map = {'V29': 'CMv2.9', 'V40': 'CMv4.0'}
-        cm_version = cm_map.get(raw_cm, raw_cm)
+        # Detect CM version from vdr_dm_data structure
+        # dovi_tool outputs cmv29_metadata or cmv40_metadata inside vdr_dm_data
+        vdr_dm = metadata.get('vdr_dm_data', {})
+        if vdr_dm.get('cmv40_metadata'):
+            cm_version = 'CMv4.0'
+        elif vdr_dm.get('cmv29_metadata'):
+            cm_version = 'CMv2.9'
+        else:
+            cm_version = ''
 
         print(
             f"  [DV] Dolby Vision detected: Profile {profile}, EL Type: "
