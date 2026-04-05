@@ -101,7 +101,7 @@ def manual_scan():
 
             if total == 0:
                 scan_progress_queue.put(json.dumps({
-                    'current': 0, 'total': 0, 'percent': 100,
+                    'current': 0, 'total': 0, 'percent': 0,
                     'status': 'done', 'new_files': 0,
                     'removed_files': removed_count,
                     'total_files': len(database.scanned_files)
