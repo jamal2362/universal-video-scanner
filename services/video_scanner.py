@@ -96,13 +96,24 @@ def extract_dovi_metadata(video_file):
         profile = metadata.get('dovi_profile')
         el_type = metadata.get('el_type', '').upper()
 
+        # Detect CM version from vdr_dm_data structure
+        # dovi_tool outputs cmv29_metadata or cmv40_metadata inside vdr_dm_data
+        vdr_dm = metadata.get('vdr_dm_data', {})
+        if vdr_dm.get('cmv40_metadata'):
+            cm_version = 'CMv4.0'
+        elif vdr_dm.get('cmv29_metadata'):
+            cm_version = 'CMv2.9'
+        else:
+            cm_version = ''
+
         print(
             f"  [DV] Dolby Vision detected: Profile {profile}, EL Type: "
-            f"{el_type or 'None'}")
+            f"{el_type or 'None'}, CM Version: {cm_version or 'None'}")
 
         return {
             'profile': profile,
-            'el_type': el_type if el_type else ''
+            'el_type': el_type if el_type else '',
+            'cm_version': cm_version
         }
 
     except subprocess.TimeoutExpired as e:
@@ -152,6 +163,7 @@ def detect_hdr_format(video_file):
                 'format': 'Dolby Vision',
                 'profile': profile,
                 'el_type': el_type,
+                'cm_version': dovi.get('cm_version', ''),
                 'detail': detail
             }
 
@@ -1078,7 +1090,8 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
         'duration': duration,
         'video_bitrate': video_bitrate,
         'audio_bitrate': audio_bitrate,
-        'file_size': file_size
+        'file_size': file_size,
+        'dv_cm_version': hdr_info.get('cm_version', '')
     }
 
     with scan_lock:
