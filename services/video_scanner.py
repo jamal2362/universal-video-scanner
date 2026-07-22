@@ -4,15 +4,13 @@
 Video Scanner Service Module
 Handles video file analysis, HDR detection, and metadata extraction.
 
-Detection is handled by two fast native probes:
+Detection is handled exclusively by two fast native probes:
   * hdrprobe   - HDR format (SDR/HDR10/HDR10+/HLG/Dolby Vision), DV profile,
                  enhancement-layer type, CM version, resolution, video bitrate
                  and duration. Replaces dovi_tool + MediaInfo + FFmpeg for video.
-  * audioprobe - audio codec, channel layout and language per track.
-
-A single, slim ffprobe call is retained only for the two things audioprobe
-does not report: object-based audio detection (Dolby Atmos / DTS:X) and audio
-bitrate.
+  * audioprobe - audio codec, channel layout, language, bitrate and immersive
+                 audio format (Dolby Atmos / DTS:X) per track. Replaces
+                 MediaInfo + ffprobe for audio (audioprobe >= 0.2.0).
 """
 import os
 import re
@@ -107,82 +105,6 @@ def run_audioprobe(video_file):
         return []
     tracks = files[0].get('audio_tracks')
     return tracks if isinstance(tracks, list) else []
-
-
-def run_ffprobe_audio(video_file):
-    """
-    Slim ffprobe call. Retained ONLY to recover the two fields audioprobe does
-    not provide: object-based audio (Atmos / DTS:X) and audio bitrate.
-
-    Returns (streams, format_duration):
-      streams          - list of dicts in container audio-track order, each with
-                         codec_name, profile, channels, language, title,
-                         is_atmos, is_dtsx, is_imax, bit_rate (bit/s) and bps.
-      format_duration  - float seconds or None (duration fallback for hdrprobe).
-    """
-    try:
-        cmd = [
-            'ffprobe', '-v', 'error',
-            '-select_streams', 'a',
-            '-show_entries',
-            'stream=index,codec_name,profile,channels,bit_rate'
-            ':stream_tags=language,title,BPS'
-            ':format=duration',
-            '-of', 'json',
-            video_file
-        ]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=PROBE_TIMEOUT)
-    except FileNotFoundError:
-        return [], None
-    except Exception as e:
-        print(f"  [ffprobe] audio probe failed for {os.path.basename(video_file)}: {e}")
-        return [], None
-
-    if result.returncode != 0:
-        return [], None
-
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return [], None
-
-    format_duration = None
-    fmt = data.get('format') or {}
-    if fmt.get('duration'):
-        try:
-            format_duration = float(fmt['duration'])
-        except (ValueError, TypeError):
-            format_duration = None
-
-    streams = []
-    for st in data.get('streams', []) or []:
-        tags = st.get('tags', {}) or {}
-        title = (tags.get('title') or '')
-        profile = (st.get('profile') or '')
-        blob = f"{title} {profile}".lower()
-
-        is_atmos = 'atmos' in blob or 'joc' in blob
-        is_dtsx = any(x in blob for x in ('dts:x', 'dts-x', 'dtsx'))
-        is_imax = 'imax' in title.lower()
-
-        streams.append({
-            'codec_name': (st.get('codec_name') or '').lower(),
-            'profile': profile,
-            'channels': st.get('channels') or 0,
-            'language': (tags.get('language') or '').lower(),
-            'title': title,
-            'is_atmos': is_atmos,
-            'is_dtsx': is_dtsx,
-            'is_imax': is_imax,
-            'bit_rate': st.get('bit_rate'),
-            'bps': tags.get('BPS'),
-        })
-
-    return streams, format_duration
 
 
 # ---------------------------------------------------------------------------
@@ -311,97 +233,37 @@ def video_bitrate_from_track(video_track):
 
 
 # ---------------------------------------------------------------------------
-# Audio derivation (audioprobe + slim ffprobe)
+# Audio derivation (audioprobe)
 # ---------------------------------------------------------------------------
-def _codec_family(name):
+def _normalize_audio_tracks(ap_tracks):
     """
-    Normalize a codec name to a comparable family token. Accepts both
-    audioprobe strings ('E-AC-3', 'DTS-HD MA') and ffprobe codec_names
-    ('eac3', 'dca'), so a track from each tool maps to the same token.
+    Normalize audioprobe (>= 0.2.0) tracks into the internal shape used by the
+    scoring / selection / display helpers.
+
+    audioprobe reports object-based audio in a dedicated 'immersive' field
+    ('Atmos' / 'DTS:X' / null) and the bitrate (bit/s) directly, so no second
+    tool is needed. IMAX Enhanced tracks are flagged from the track title,
+    since audioprobe does not classify them.
     """
-    n = (name or '').lower()
-    if 'truehd' in n or n == 'mlp':
-        return 'truehd'
-    if 'eac3' in n or 'e-ac-3' in n:
-        return 'eac3'
-    if 'ac-3' in n or n == 'ac3':
-        return 'ac3'
-    if n.startswith('dts') or n == 'dca':
-        return 'dts'
-    if 'aac' in n:
-        return 'aac'
-    if 'flac' in n:
-        return 'flac'
-    if 'pcm' in n or 'lpcm' in n:
-        return 'pcm'
-    if 'alac' in n:
-        return 'alac'
-    if 'opus' in n:
-        return 'opus'
-    if 'vorbis' in n:
-        return 'vorbis'
-    if n in ('mp1', 'mp2', 'mp3') or 'mpeg' in n:
-        return 'mp3'
-    return ''.join(ch for ch in n if ch.isalnum())
-
-
-def _merge_audio_tracks(ap_tracks, ff_streams):
-    """
-    Combine audioprobe tracks (authoritative codec/layout/language) with the
-    matching ffprobe stream (Atmos/DTS:X flags + bitrate).
-
-    audioprobe and ffprobe both enumerate audio tracks in container order, so a
-    positional match is tried first and validated by codec family; a family +
-    language scan is the fallback for divergent orderings.
-    """
-    merged = []
-    used = set()
-
-    for i, ap in enumerate(ap_tracks):
-        fam = _codec_family(ap.get('codec'))
-        language = (ap.get('language') or '').lower()
-        ff = None
-
-        # 1) Positional match with family confirmation
-        if i < len(ff_streams) and i not in used \
-                and _codec_family(ff_streams[i].get('codec_name')) == fam:
-            ff = ff_streams[i]
-            used.add(i)
-        else:
-            # 2) Family + language, then family only
-            for j, cand in enumerate(ff_streams):
-                if j in used or _codec_family(cand.get('codec_name')) != fam:
-                    continue
-                if language and cand.get('language') == language:
-                    ff = cand
-                    used.add(j)
-                    break
-            if ff is None:
-                for j, cand in enumerate(ff_streams):
-                    if j in used or _codec_family(cand.get('codec_name')) != fam:
-                        continue
-                    ff = cand
-                    used.add(j)
-                    break
-
-        ff = ff or {}
-        merged.append({
-            'codec': ap.get('codec') or '',
-            'channels': ap.get('channels') or 0,
-            'layout': ap.get('layout') or '',
-            'language': language,
-            'is_atmos': bool(ff.get('is_atmos')),
-            'is_dtsx': bool(ff.get('is_dtsx')),
-            'is_imax': bool(ff.get('is_imax')),
-            'bit_rate': ff.get('bit_rate'),
-            'bps': ff.get('bps'),
+    normalized = []
+    for t in ap_tracks:
+        immersive = (t.get('immersive') or '').lower()
+        title = (t.get('title') or '')
+        normalized.append({
+            'codec': t.get('codec') or '',
+            'channels': t.get('channels') or 0,
+            'layout': t.get('layout') or '',
+            'language': (t.get('language') or '').lower(),
+            'is_atmos': immersive == 'atmos',
+            'is_dtsx': ('dts:x' in immersive or 'dts-x' in immersive or 'dtsx' in immersive),
+            'is_imax': 'imax' in title.lower(),
+            'bitrate': t.get('bitrate'),
         })
-
-    return merged
+    return normalized
 
 
 def _audio_quality_score(track):
-    """Quality score for a merged audio track. Higher = better."""
+    """Quality score for a normalized audio track. Higher = better."""
     c = (track.get('codec') or '').lower()
     is_atmos = track.get('is_atmos')
     is_dtsx = track.get('is_dtsx')
@@ -560,16 +422,15 @@ def _audio_display_name(track):
 
 
 def _audio_bitrate_from_track(track):
-    """Return audio bitrate in kbit/s from the selected track's ffprobe data."""
+    """Return audio bitrate in kbit/s from the selected audioprobe track."""
     if not track:
         return None
-    # Prefer the BPS stream tag (MKV containers), then bit_rate (MP4 and others)
-    for value in (track.get('bps'), track.get('bit_rate')):
-        if value:
-            try:
-                return int(int(value) / 1000)
-            except (ValueError, TypeError):
-                pass
+    bitrate = track.get('bitrate')
+    if bitrate:
+        try:
+            return int(int(bitrate) / 1000)
+        except (ValueError, TypeError):
+            return None
     return None
 
 
@@ -596,17 +457,12 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
     video_bitrate = video_bitrate_from_track(video_track)
     duration = hdr_report.get('duration_secs') if hdr_report else None
 
-    # --- Audio analysis via audioprobe + slim ffprobe (Atmos/DTS:X, bitrate) ---
-    ap_tracks = run_audioprobe(file_path)
-    ff_streams, ff_duration = run_ffprobe_audio(file_path)
-    merged_audio = _merge_audio_tracks(ap_tracks, ff_streams)
-    selected_audio = _select_best_audio(merged_audio)
+    # --- Audio analysis via audioprobe (codec, layout, language, bitrate,
+    #     immersive Atmos/DTS:X) ---
+    audio_tracks = _normalize_audio_tracks(run_audioprobe(file_path))
+    selected_audio = _select_best_audio(audio_tracks)
     audio_codec = _audio_display_name(selected_audio) if selected_audio else "Unknown"
     audio_bitrate = _audio_bitrate_from_track(selected_audio)
-
-    # Duration fallback (some raw streams carry no duration in hdrprobe)
-    if duration is None:
-        duration = ff_duration
 
     file_size = os.path.getsize(file_path)
 

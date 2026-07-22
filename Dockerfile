@@ -1,41 +1,20 @@
-# ---------------------------------------------------------------------------
-# Stage 1: build audioprobe from source (no prebuilt releases are published).
-# Built as a fully static musl binary so it runs on any runtime glibc.
-# ---------------------------------------------------------------------------
-FROM rust:1-slim AS audioprobe-builder
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    musl-tools \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && rustup target add x86_64-unknown-linux-musl
-
-WORKDIR /build
-ADD https://github.com/CE-Repo/audioprobe/archive/refs/heads/main.tar.gz audioprobe.tar.gz
-RUN tar -xzf audioprobe.tar.gz \
-    && cd audioprobe-main \
-    && cargo build --release --target x86_64-unknown-linux-musl \
-    && cp target/x86_64-unknown-linux-musl/release/audioprobe /audioprobe
-
-# ---------------------------------------------------------------------------
-# Stage 2: runtime image
-# ---------------------------------------------------------------------------
 FROM ubuntu:22.04
 
-# hdrprobe release version (prebuilt binary)
+# Probe versions (prebuilt release binaries)
 ARG HDRPROBE_VERSION=0.7.0
+ARG AUDIOPROBE_VERSION=0.2.0
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install runtime dependencies.
-# ffmpeg is kept solely for ffprobe, which recovers the two fields audioprobe
-# does not report: object-based audio (Atmos / DTS:X) and audio bitrate.
+# Detection is handled entirely by hdrprobe + audioprobe, so no ffmpeg,
+# MediaInfo or dovi_tool are required.
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
     python3 \
     python3-pip \
     wget \
+    unzip \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -46,9 +25,12 @@ RUN wget -q "https://github.com/matthane/hdrprobe/releases/download/v${HDRPROBE_
     && install -m 0755 "$(find /tmp/hdrprobe -type f -name hdrprobe | head -n1)" /usr/local/bin/hdrprobe \
     && rm -rf /tmp/hdrprobe /tmp/hdrprobe.tar.gz
 
-# Install audioprobe (built in stage 1)
-COPY --from=audioprobe-builder /audioprobe /usr/local/bin/audioprobe
-RUN chmod +x /usr/local/bin/audioprobe
+# Download and install audioprobe (prebuilt static musl binary, runs on any glibc)
+RUN wget -q "https://github.com/CE-Repo/audioprobe/releases/download/v${AUDIOPROBE_VERSION}/audioprobe-x86_64-unknown-linux-musl.zip" -O /tmp/audioprobe.zip \
+    && mkdir -p /tmp/audioprobe \
+    && unzip -q /tmp/audioprobe.zip -d /tmp/audioprobe \
+    && install -m 0755 "$(find /tmp/audioprobe -type f -name audioprobe | head -n1)" /usr/local/bin/audioprobe \
+    && rm -rf /tmp/audioprobe /tmp/audioprobe.zip
 
 # Set working directory
 WORKDIR /app

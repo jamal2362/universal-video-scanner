@@ -8,7 +8,7 @@ Universal Video Scanner with Web Interface - Automatic detection of HDR formats 
 - **All HDR Formats**: SDR, HDR10, HDR10+, HLG, and Dolby Vision (all profiles)
 - **Dolby Vision Analysis**: Detection of MEL (Minimum Enhancement Layer) and FEL (Full Enhancement Layer) for all Dolby Vision profiles
 - **Web Interface**: Modern dark-theme dashboard on port 2367
-- **hdrprobe + audioprobe**: Fast native probes for HDR/Dolby Vision and audio metadata (no dovi_tool/MediaInfo required)
+- **hdrprobe + audioprobe**: Fast native probes for HDR/Dolby Vision and audio metadata (no dovi_tool/MediaInfo/ffmpeg required)
 - **Docker-based**: Simple deployment with Docker Compose
 - **Manual Scan**: Fallback button for on-demand scanning
 
@@ -120,9 +120,8 @@ DoVi-Detector/
 
 1. **Watchdog** monitors `/media` for new files
 2. **hdrprobe** parses the container/RPU in-process and reports the HDR format, Dolby Vision profile, EL type (FEL/MEL), CM version, resolution, video bitrate and duration
-3. **audioprobe** reports the audio codec, channel layout and language per track
-4. **ffprobe** adds the two fields audioprobe does not expose: object-based audio (Atmos / DTS:X) and audio bitrate
-5. **Results** are saved to JSON database
+3. **audioprobe** reports the audio codec, channel layout, language, bitrate and immersive audio format (Dolby Atmos / DTS:X) per track
+4. **Results** are saved to JSON database
 
 ### Static Files and Templates
 
@@ -364,9 +363,9 @@ docker-compose restart
 # Install dependencies
 pip3 install -r requirements.txt
 
-# hdrprobe, audioprobe and ffmpeg (ffprobe) must be installed manually and be on PATH
+# hdrprobe and audioprobe must be installed manually and be on PATH
 #   hdrprobe:   https://github.com/matthane/hdrprobe/releases
-#   audioprobe: https://github.com/CE-Repo/audioprobe (build with `cargo build --release`)
+#   audioprobe: https://github.com/CE-Repo/audioprobe/releases (>= v0.2.0)
 
 # Start app
 python3 app.py
@@ -385,7 +384,7 @@ python3 app.py
 - **Backend**: Python 3 + Flask
 - **Scanner**: watchdog (Filesystem Events)
 - **Video Analysis**: hdrprobe (HDR/Dolby Vision)
-- **Audio Analysis**: audioprobe + ffprobe (Atmos/DTS:X & bitrate)
+- **Audio Analysis**: audioprobe (codec, layout, bitrate, Atmos/DTS:X)
 - **Container**: Docker + Docker Compose
 - **Frontend**: HTML5 + CSS3 + Vanilla JavaScript
 
@@ -407,7 +406,6 @@ Pull requests and issues are welcome!
 
 - [hdrprobe](https://github.com/matthane/hdrprobe) by matthane
 - [audioprobe](https://github.com/CE-Repo/audioprobe) by CE-Repo
-- [FFmpeg](https://ffmpeg.org/)
 - [Flask](https://flask.palletsprojects.com/)
 - [Watchdog](https://github.com/gorakhargosh/watchdog)
 
