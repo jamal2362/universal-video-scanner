@@ -25,11 +25,16 @@ RUN wget -q "https://github.com/matthane/hdrprobe/releases/download/v${HDRPROBE_
     && install -m 0755 "$(find /tmp/hdrprobe -type f -name hdrprobe | head -n1)" /usr/local/bin/hdrprobe \
     && rm -rf /tmp/hdrprobe /tmp/hdrprobe.tar.gz
 
-# Download and install audioprobe (prebuilt x86_64 Linux binary)
+# Download and install audioprobe (prebuilt x86_64 Linux binary).
+# The binary inside the archive may be target-suffixed
+# (e.g. audioprobe-x86_64-unknown-linux-gnu), so match audioprobe* and pick the
+# extension-less executable; fail loudly with the archive listing otherwise.
 RUN wget -q "https://github.com/CE-Repo/audioprobe/releases/download/v${AUDIOPROBE_VERSION}/audioprobe-x86_64-unknown-linux-gnu.zip" -O /tmp/audioprobe.zip \
     && mkdir -p /tmp/audioprobe \
     && unzip -q /tmp/audioprobe.zip -d /tmp/audioprobe \
-    && install -m 0755 "$(find /tmp/audioprobe -type f -name audioprobe | head -n1)" /usr/local/bin/audioprobe \
+    && bin="$(find /tmp/audioprobe -type f -name 'audioprobe*' ! -name '*.*' | head -n1)" \
+    && if [ -z "$bin" ]; then echo "ERROR: audioprobe binary not found. Archive contents:"; find /tmp/audioprobe -type f; exit 1; fi \
+    && install -m 0755 "$bin" /usr/local/bin/audioprobe \
     && rm -rf /tmp/audioprobe /tmp/audioprobe.zip
 
 # Set working directory
