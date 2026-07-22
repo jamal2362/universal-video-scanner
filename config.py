@@ -27,7 +27,7 @@ FANART_API_KEY = os.environ.get('FANART_API_KEY', '')
 IMAGE_SOURCE = os.environ.get('IMAGE_SOURCE', 'tmdb').lower()
 CONTENT_LANGUAGE = os.environ.get('CONTENT_LANGUAGE', 'en').lower()
 
-# Language code mapping from ISO 639-1 to various formats used by MediaInfo/ffprobe
+# Language code mapping from ISO 639-1 to the ISO 639-2 forms emitted by audioprobe/ffprobe
 LANGUAGE_CODE_MAP = {
     'en': ['eng', 'en', 'english'],
     'de': ['ger', 'deu', 'de', 'german'],

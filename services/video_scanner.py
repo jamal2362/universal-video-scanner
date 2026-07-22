@@ -2,1007 +2,611 @@
 # Licensed under the MIT License. See LICENSE file in the project root for full license information.
 """
 Video Scanner Service Module
-Handles video file analysis, HDR detection, and metadata extraction
+Handles video file analysis, HDR detection, and metadata extraction.
+
+Detection is handled by two fast native probes:
+  * hdrprobe   - HDR format (SDR/HDR10/HDR10+/HLG/Dolby Vision), DV profile,
+                 enhancement-layer type, CM version, resolution, video bitrate
+                 and duration. Replaces dovi_tool + MediaInfo + FFmpeg for video.
+  * audioprobe - audio codec, channel layout and language per track.
+
+A single, slim ffprobe call is retained only for the two things audioprobe
+does not report: object-based audio detection (Dolby Atmos / DTS:X) and audio
+bitrate.
 """
 import os
+import re
 import json
 import subprocess
-import tempfile
-from utils.media_utils import get_channel_format, parse_bitrate_string
+from utils.media_utils import get_channel_format
 import config
 
+# Timeout (seconds) for a single probe invocation
+PROBE_TIMEOUT = 30
 
-def extract_dovi_metadata(video_file):
+
+# ---------------------------------------------------------------------------
+# Low-level probe helpers
+# ---------------------------------------------------------------------------
+def _decode_json_object(stdout):
     """
-    Extract Dolby Vision metadata using ffmpeg pipe + dovi_tool JSON output
-    Returns dict with profile + el_type or None
+    Decode the first JSON object from probe output, tolerating stray leading
+    log text. Works for both hdrprobe (object or single-element array) and
+    audioprobe ({"files": [...]}) output.
     """
-    rpu_path = None
-    ffmpeg_proc = None
+    if not stdout:
+        return None
+    start = stdout.find('{')
+    if start == -1:
+        return None
+    try:
+        data, _ = json.JSONDecoder().raw_decode(stdout[start:])
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def run_hdrprobe(video_file):
+    """
+    Run `hdrprobe --json` once.
+    Returns (report_dict, first_video_track_dict) or (None, None) on failure.
+    """
+    try:
+        result = subprocess.run(
+            ['hdrprobe', '--json', video_file],
+            capture_output=True,
+            text=True,
+            timeout=PROBE_TIMEOUT)
+    except FileNotFoundError:
+        print("  [hdrprobe] binary not found in PATH")
+        return None, None
+    except subprocess.TimeoutExpired:
+        print(f"  [hdrprobe] timeout for {os.path.basename(video_file)}")
+        return None, None
+    except Exception as e:
+        print(f"  [hdrprobe] error for {os.path.basename(video_file)}: {e}")
+        return None, None
+
+    report = _decode_json_object(result.stdout)
+    if not report:
+        print(f"  [hdrprobe] no parsable output for {os.path.basename(video_file)}")
+        return None, None
+
+    tracks = report.get('video_tracks') or []
+    video_track = tracks[0] if tracks else None
+    return report, video_track
+
+
+def run_audioprobe(video_file):
+    """
+    Run `audioprobe --json` once.
+    Returns a list of audio-track dicts (may be empty).
+    """
+    try:
+        result = subprocess.run(
+            ['audioprobe', '--json', video_file],
+            capture_output=True,
+            text=True,
+            timeout=PROBE_TIMEOUT)
+    except FileNotFoundError:
+        print("  [audioprobe] binary not found in PATH")
+        return []
+    except subprocess.TimeoutExpired:
+        print(f"  [audioprobe] timeout for {os.path.basename(video_file)}")
+        return []
+    except Exception as e:
+        print(f"  [audioprobe] error for {os.path.basename(video_file)}: {e}")
+        return []
+
+    report = _decode_json_object(result.stdout)
+    if not report:
+        return []
+
+    files = report.get('files')
+    if not isinstance(files, list) or not files:
+        return []
+    tracks = files[0].get('audio_tracks')
+    return tracks if isinstance(tracks, list) else []
+
+
+def run_ffprobe_audio(video_file):
+    """
+    Slim ffprobe call. Retained ONLY to recover the two fields audioprobe does
+    not provide: object-based audio (Atmos / DTS:X) and audio bitrate.
+
+    Returns (streams, format_duration):
+      streams          - list of dicts in container audio-track order, each with
+                         codec_name, profile, channels, language, title,
+                         is_atmos, is_dtsx, is_imax, bit_rate (bit/s) and bps.
+      format_duration  - float seconds or None (duration fallback for hdrprobe).
+    """
+    try:
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'a',
+            '-show_entries',
+            'stream=index,codec_name,profile,channels,bit_rate'
+            ':stream_tags=language,title,BPS'
+            ':format=duration',
+            '-of', 'json',
+            video_file
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=PROBE_TIMEOUT)
+    except FileNotFoundError:
+        return [], None
+    except Exception as e:
+        print(f"  [ffprobe] audio probe failed for {os.path.basename(video_file)}: {e}")
+        return [], None
+
+    if result.returncode != 0:
+        return [], None
 
     try:
-        # Extract first second of video
-        ffmpeg_cmd = [
-            'ffmpeg',
-            '-i', video_file,
-            '-map', '0:v:0',
-            '-c:v', 'copy',
-            '-to', '1',
-            '-f', 'hevc',
-            '-'
-        ]
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return [], None
 
-        ffmpeg_proc = subprocess.Popen(
-            ffmpeg_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
-        )
+    format_duration = None
+    fmt = data.get('format') or {}
+    if fmt.get('duration'):
+        try:
+            format_duration = float(fmt['duration'])
+        except (ValueError, TypeError):
+            format_duration = None
 
-        # Create temp file for RPU data
-        with tempfile.NamedTemporaryFile(dir=config.TEMP_DIR, suffix='.bin', delete=False) as rpu_tmp:
-            rpu_path = rpu_tmp.name
+    streams = []
+    for st in data.get('streams', []) or []:
+        tags = st.get('tags', {}) or {}
+        title = (tags.get('title') or '')
+        profile = (st.get('profile') or '')
+        blob = f"{title} {profile}".lower()
 
-        # Extract RPU metadata
-        subprocess.run(
-            ['dovi_tool', 'extract-rpu', '-', '-o', rpu_path],
-            stdin=ffmpeg_proc.stdout,
-            capture_output=True,
-            timeout=30
-        )
+        is_atmos = 'atmos' in blob or 'joc' in blob
+        is_dtsx = any(x in blob for x in ('dts:x', 'dts-x', 'dtsx'))
+        is_imax = 'imax' in title.lower()
 
-        # Wait for ffmpeg to complete
-        if ffmpeg_proc:
-            ffmpeg_proc.wait(timeout=30)
-
-        # Check if RPU file was created and has content
-        if not os.path.exists(rpu_path):
-            print(
-                f"  [DV] No RPU file created for "
-                f"{os.path.basename(video_file)}")
-            return None
-
-        if os.path.getsize(rpu_path) == 0:
-            print(f"  [DV] Empty RPU file for {os.path.basename(video_file)}")
-            return None
-
-        # Get Dolby Vision info from RPU
-        dovi_info = subprocess.run(
-            ['dovi_tool', 'info', '-i', rpu_path, '-f', '0'],
-            capture_output=True,
-            timeout=30
-        )
-
-        if dovi_info.returncode != 0:
-            stderr = dovi_info.stderr.decode('utf-8', errors='ignore')
-            print(
-                f"  [DV] dovi_tool info failed for "
-                f"{os.path.basename(video_file)}: {stderr}")
-            return None
-
-        # Parse output
-        output = dovi_info.stdout.decode('utf-8')
-
-        # The output format is: first line is summary, rest is JSON
-        lines = output.strip().split('\n')
-        if len(lines) < 2:
-            print(
-                f"  [DV] Unexpected dovi_tool output format for "
-                f"{os.path.basename(video_file)}")
-            return None
-
-        json_data = '\n'.join(lines[1:])
-        metadata = json.loads(json_data)
-
-        profile = metadata.get('dovi_profile')
-        el_type = metadata.get('el_type', '').upper()
-
-        # Detect CM version from vdr_dm_data structure
-        # dovi_tool outputs cmv29_metadata or cmv40_metadata inside vdr_dm_data
-        vdr_dm = metadata.get('vdr_dm_data', {})
-        if vdr_dm.get('cmv40_metadata'):
-            cm_version = 'CMv4.0'
-        elif vdr_dm.get('cmv29_metadata'):
-            cm_version = 'CMv2.9'
-        else:
-            cm_version = ''
-
-        print(
-            f"  [DV] Dolby Vision detected: Profile {profile}, EL Type: "
-            f"{el_type or 'None'}, CM Version: {cm_version or 'None'}")
-
-        return {
+        streams.append({
+            'codec_name': (st.get('codec_name') or '').lower(),
             'profile': profile,
-            'el_type': el_type if el_type else '',
-            'cm_version': cm_version
+            'channels': st.get('channels') or 0,
+            'language': (tags.get('language') or '').lower(),
+            'title': title,
+            'is_atmos': is_atmos,
+            'is_dtsx': is_dtsx,
+            'is_imax': is_imax,
+            'bit_rate': st.get('bit_rate'),
+            'bps': tags.get('BPS'),
+        })
+
+    return streams, format_duration
+
+
+# ---------------------------------------------------------------------------
+# HDR / video derivation (hdrprobe)
+# ---------------------------------------------------------------------------
+def _compact_cm_version(value):
+    """Collapse hdrprobe's 'CM v2.9' / 'CM v4.0' into the app's compact form."""
+    if not value:
+        return ''
+    low = value.lower()
+    has29 = '2.9' in low
+    has40 = '4.0' in low
+    if has29 and has40:
+        return 'CMv2.9/4.0'
+    if has40:
+        return 'CMv4.0'
+    if has29:
+        return 'CMv2.9'
+    return ''
+
+
+def hdr_info_from_track(video_track):
+    """
+    Derive the HDR info dict from an hdrprobe video track.
+
+    The returned 'format' strings and 'DV Profile X.Y' detail are kept
+    byte-compatible with the existing template/JS badge and sort logic.
+    """
+    if not video_track:
+        return {'format': 'Unknown', 'detail': 'Error',
+                'profile': '', 'el_type': '', 'cm_version': ''}
+
+    hdr = video_track.get('hdr') or {}
+    fmt_str = (hdr.get('format') or '')
+    fmt_low = fmt_str.lower()
+
+    dovi = video_track.get('dolby_vision')
+    hdr10plus = video_track.get('hdr10plus')
+
+    # --- Dolby Vision (highest priority) ---
+    if dovi:
+        profile_raw = (dovi.get('profile') or '').strip()
+        match = re.match(r'[0-9]+(?:\.[0-9]+)?', profile_raw)
+        profile = match.group(0) if match else profile_raw
+        el_type = (dovi.get('el_type') or '').upper()
+        cm_version = _compact_cm_version(dovi.get('cm_version'))
+        detail = f'DV Profile {profile}' if profile else 'Dolby Vision'
+        print(
+            f"  -> Dolby Vision (Profile {profile or '?'}, "
+            f"EL: {el_type or 'None'}, CM: {cm_version or 'None'})")
+        return {
+            'format': 'Dolby Vision',
+            'profile': profile,
+            'el_type': el_type,
+            'cm_version': cm_version,
+            'detail': detail,
         }
 
-    except subprocess.TimeoutExpired as e:
-        print(f"  [DV] Timeout while extracting Dolby Vision metadata: {e}")
+    # --- HDR10+ (dynamic metadata) ---
+    if hdr10plus or 'hdr10+' in fmt_low or 'hdr10plus' in fmt_low:
+        print("  -> HDR10+ detected")
+        return {'format': 'HDR10+', 'detail': 'HDR10+',
+                'profile': 'HDR10+', 'el_type': '', 'cm_version': ''}
+
+    # --- HLG ---
+    if 'hlg' in fmt_low:
+        print("  -> HLG detected")
+        return {'format': 'HLG', 'detail': 'HLG',
+                'profile': '', 'el_type': '', 'cm_version': ''}
+
+    # --- HDR10 / generic HDR static metadata ---
+    if 'hdr10' in fmt_low or 'hdr' in fmt_low:
+        print("  -> HDR10 detected")
+        return {'format': 'HDR10', 'detail': 'HDR10',
+                'profile': '', 'el_type': '', 'cm_version': ''}
+
+    # --- SDR (default) ---
+    print("  -> No HDR metadata found: assuming SDR")
+    return {'format': 'SDR', 'detail': 'SDR',
+            'profile': '', 'el_type': '', 'cm_version': ''}
+
+
+def resolution_from_track(video_track):
+    """Map hdrprobe width/height to a friendly resolution name."""
+    if not video_track:
+        return "Unknown"
+
+    width = video_track.get('width') or 0
+    height = video_track.get('height') or 0
+    if not width or not height:
+        return "Unknown"
+
+    if width == 3840 and height == 2160:
+        return "4K (UHD)"
+    elif width == 1920 and height == 1080:
+        return "1080p (Full HD)"
+    elif width == 1280 and height == 720:
+        return "720p (HD)"
+    elif width == 7680 and height == 4320:
+        return "8K (UHD)"
+    elif width == 2560 and height == 1440:
+        return "1440p"
+    elif width == 4096 and height == 2160:
+        return "4K DCI"
+    elif width == 1366 and height == 768:
+        return "768p"
+    elif width == 854 and height == 480:
+        return "480p (SD)"
+    elif width == 640 and height == 480:
+        return "480p (SD)"
+    return f"{width}x{height}"
+
+
+def video_bitrate_from_track(video_track):
+    """Return the video bitrate in kbit/s from hdrprobe, or None."""
+    if not video_track:
         return None
-    except json.JSONDecodeError as e:
-        print(f"  [DV] Failed to parse dovi_tool JSON output: {e}")
-        return None
-    except Exception as e:
-        print(
-            f"  [DV] Dolby Vision extraction error for "
-            f"{os.path.basename(video_file)}: {e}")
-        return None
-    finally:
-        # Clean up temp file
+    bitrate = video_track.get('bitrate') or {}
+    bps = bitrate.get('bits_per_sec')
+    if bps:
         try:
-            if rpu_path and os.path.exists(rpu_path):
-                os.remove(rpu_path)
-        except Exception as e:
-            print(f"  [DV] Failed to remove temp file {rpu_path}: {e}")
-
-        # Ensure ffmpeg process is terminated
-        try:
-            if ffmpeg_proc and ffmpeg_proc.poll() is None:
-                ffmpeg_proc.terminate()
-                ffmpeg_proc.wait(timeout=5)
-        except Exception:
-            pass
-
-
-def detect_hdr_format(video_file):
-    """
-    Detect HDR format: SDR, HDR10, HDR10+, HLG, Dolby Vision (FEL/MEL)
-    Returns dict with 'format', 'detail', and optionally 'profile'/'el_type'
-    """
-    try:
-        print(f"[HDR] Analyzing: {os.path.basename(video_file)}")
-
-        # --- Step 1: Dolby Vision ---
-        dovi = extract_dovi_metadata(video_file)
-        if dovi:
-            profile = dovi.get('profile')
-            el_type = dovi.get('el_type', '').upper()
-            detail = f'DV Profile {profile}'
-            print(f"  -> Dolby Vision {detail}")
-            return {
-                'format': 'Dolby Vision',
-                'profile': profile,
-                'el_type': el_type,
-                'cm_version': dovi.get('cm_version', ''),
-                'detail': detail
-            }
-
-        # --- Step 2: HDR10+ (dynamic metadata) ---
-        try:
-            mi_cmd = ['mediainfo', '--Output=JSON', video_file]
-            mi_proc = subprocess.run(mi_cmd, capture_output=True, text=True, timeout=10)
-            if mi_proc.returncode == 0 and mi_proc.stdout:
-                try:
-                    mi_json = json.loads(mi_proc.stdout)
-                    media = mi_json.get('media', {}) or {}
-                    tracks = media.get('track', []) or []
-                    # find video tracks (MediaInfo uses @type == "Video")
-                    for t in tracks:
-                        ttype = (t.get('@type') or '').lower()
-                        if ttype != 'video':
-                            continue
-                        hdr_format = (t.get('HDR_Format') or '') or (t.get('HDR format') or '')
-                        hdr_compat = (t.get('HDR_Format_Compatibility') or '') or (t.get('HDR format compatibility') or '')
-                        lf = (hdr_format or '').lower()
-                        lc = (hdr_compat or '').lower()
-
-                        # 1) Direct HDR10+ mentions (strong signal)
-                        if 'hdr10+' in lf or 'hdr10plus' in lf or 'hdr10+' in lc or 'hdr10plus' in lc:
-                            print(f"  -> HDR10+ detected (MediaInfo explicit): HDR_Format='{hdr_format}' HDR_Format_Compatibility='{hdr_compat}'")
-                            return {
-                                'format': 'HDR10+',
-                                'detail': 'HDR10+',
-                                'profile': 'HDR10+',
-                                'el_type': ''
-                            }
-
-                        # 2) SMPTE ST 2094 / App 4 detection (must be 2094, NOT 2084)
-                        # Require explicit '2094' or 'app 4' or 'smpte st 2094' to avoid matching PQ (2084).
-                        if (('2094' in lf or 'app 4' in lf or 'app4' in lf or 'smpte st 2094' in lf or 'smpte2094' in lf)
-                                and '2084' not in lf):
-                            print(f"  -> HDR10+ detected (MediaInfo SMPTE ST 2094 / App 4): HDR_Format='{hdr_format}'")
-                            return {
-                                'format': 'HDR10+',
-                                'detail': 'HDR10+',
-                                'profile': 'HDR10+',
-                                'el_type': ''
-                            }
-
-                        # 3) Compatibility field mentioning HDR10+ or profile A (explicit compatibility)
-                        if any(k in lc for k in ['hdr10+ profile', 'profile a', 'hdr10+']):
-                            print(f"  -> HDR10+ detected (MediaInfo compatibility): HDR_Format_Compatibility='{hdr_compat}'")
-                            return {
-                                'format': 'HDR10+',
-                                'detail': 'HDR10+',
-                                'profile': 'HDR10+',
-                                'el_type': ''
-                            }
-                except Exception as e:
-                    print(f"  [HDR] Failed parsing MediaInfo JSON: {e}")
-        except FileNotFoundError:
-            # mediainfo not installed / not available in PATH
-            pass
-        except Exception as e:
-            print(f"  [HDR] MediaInfo call failed: {e}")
-
-        # Fallback: Full stream info text search (existing logic) - stricter pattern
-        cmd = [
-            'ffprobe', '-v', 'error',
-            '-select_streams', 'v:0',
-            '-show_streams',
-            video_file
-        ]
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=15)
-        except Exception as e:
-            result = None
-            print(f"  [HDR] ffprobe show_streams call failed: {e}")
-
-        if result and result.returncode == 0:
-            output_lower = (result.stdout or '').lower()
-            # only match explicit HDR10+ or explicit SMPTE ST 2094 mentions (not generic 'smpte')
-            if any(indicator in output_lower for indicator in [
-                    'hdr10+',
-                    'hdr10plus',
-                    'smpte st 2094',
-                    'smpte2094',
-                    'smpte-st-2094']):
-                print("  -> HDR10+ detected (fallback text search)")
-                return {
-                    'format': 'HDR10+',
-                    'detail': 'HDR10+',
-                    'profile': 'HDR10+',
-                    'el_type': ''
-                }
-
-        # --- Step 3: HDR10 / HLG (static metadata) ---
-        cmd = [
-            'ffprobe', '-v', 'error',
-            '-select_streams', 'v:0',
-            '-show_entries', 'stream=color_transfer,color_primaries',
-            '-of', 'json',
-            video_file
-        ]
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=15)
-        except Exception as e:
-            result = None
-            print(f"  [HDR] ffprobe color metadata call failed: {e}")
-
-        if result and result.returncode == 0:
-            try:
-                data = json.loads(result.stdout)
-                streams = data.get('streams', [])
-                if streams:
-                    st = streams[0]
-                    transfer = (st.get('color_transfer') or '').lower()
-                    primaries = (st.get('color_primaries') or '').lower()
-                    # HLG detection
-                    if 'hlg' in transfer or 'arib' in transfer:
-                        print("  -> HLG detected")
-                        return {'format': 'HLG', 'detail': 'HLG', 'profile': '', 'el_type': ''}
-                    # PQ / HDR10 detection (SMPTE ST 2084 / PQ)
-                    if any(x in transfer for x in ['pq', 'smpte2084', 'smpte st 2084', 'smpte-st-2084']):
-                        print("  -> PQ transfer detected (likely HDR10)")
-                        return {'format': 'HDR10', 'detail': 'HDR10', 'profile': '', 'el_type': ''}
-                    # If BT.2020 primaries present -> assume HDR10
-                    if 'bt2020' in primaries or 'bt.2020' in primaries:
-                        print("  -> BT.2020 primaries detected (likely HDR10)")
-                        return {'format': 'HDR10', 'detail': 'HDR10', 'profile': '', 'el_type': ''}
-            except Exception as e:
-                print(f"  [HDR] color metadata parsing failed: {e}")
-
-        # Final fallback: SDR
-        print("  -> No HDR metadata found: assuming SDR")
-        return {'format': 'SDR', 'detail': 'SDR', 'profile': '', 'el_type': ''}
-
-    except Exception as e:
-        print(f"  [HDR] Unexpected error while detecting HDR format: {e}")
-        return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': ''}
-
-
-def get_video_resolution(video_file):
-    """Get video resolution using ffprobe and return friendly name"""
-    try:
-        cmd = [
-            'ffprobe', '-v', 'error',
-            '-select_streams', 'v:0',
-            '-show_entries', 'stream=width,height',
-            '-of', 'json',
-            video_file
-        ]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if 'streams' in data and len(data['streams']) > 0:
-                stream = data['streams'][0]
-                width = stream.get('width', 0)
-                height = stream.get('height', 0)
-
-                # Map resolution to friendly names
-                if width == 3840 and height == 2160:
-                    return "4K (UHD)"
-                elif width == 1920 and height == 1080:
-                    return "1080p (Full HD)"
-                elif width == 1280 and height == 720:
-                    return "720p (HD)"
-                elif width == 7680 and height == 4320:
-                    return "8K (UHD)"
-                elif width == 2560 and height == 1440:
-                    return "1440p"
-                elif width == 4096 and height == 2160:
-                    return "4K DCI"
-                elif width == 1366 and height == 768:
-                    return "768p"
-                elif width == 854 and height == 480:
-                    return "480p (SD)"
-                elif width == 640 and height == 480:
-                    return "480p (SD)"
-                else:
-                    return f"{width}x{height}"
-    except Exception as e:
-        print(f"Error getting resolution: {e}")
-    return "Unknown"
-
-
-def get_audio_info_mediainfo(video_file):
-    """Get audio information using MediaInfo"""
-    try:
-        cmd = ['mediainfo', '--Output=JSON', video_file]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if data.get('media') and 'track' in data['media']:
-                audio_tracks = [track for track in data['media']
-                                ['track'] if track.get('@type') == 'Audio']
-                if audio_tracks:
-                    return audio_tracks
-    except Exception as e:
-        print(f"Error getting audio info from MediaInfo: {e}")
+            return int(float(bps) / 1000)
+        except (ValueError, TypeError):
+            return None
     return None
 
 
-def get_video_duration(video_file):
-    """Get video duration in seconds using ffprobe"""
-    try:
-        cmd = [
-            'ffprobe', '-v', 'error',
-            '-show_entries', 'format=duration',
-            '-of', 'json',
-            video_file
-        ]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if 'format' in data and 'duration' in data['format']:
-                duration = float(data['format']['duration'])
-                return duration
-    except Exception as e:
-        print(f"Error getting video duration: {e}")
-    return None
+# ---------------------------------------------------------------------------
+# Audio derivation (audioprobe + slim ffprobe)
+# ---------------------------------------------------------------------------
+def _audio_family(codec):
+    """Normalize an audioprobe codec name to a comparable family token."""
+    c = (codec or '').lower()
+    if 'truehd' in c or c == 'mlp':
+        return 'truehd'
+    if 'e-ac-3' in c or 'eac3' in c:
+        return 'eac3'
+    if 'ac-3' in c or c == 'ac3':
+        return 'ac3'
+    if c.startswith('dts'):
+        return 'dts'
+    if 'aac' in c:
+        return 'aac'
+    if 'flac' in c:
+        return 'flac'
+    if 'pcm' in c or 'lpcm' in c:
+        return 'pcm'
+    if 'alac' in c:
+        return 'alac'
+    if 'opus' in c:
+        return 'opus'
+    if 'vorbis' in c:
+        return 'vorbis'
+    if c in ('mp1', 'mp2', 'mp3') or 'mpeg' in c:
+        return 'mp3'
+    return ''.join(ch for ch in c if ch.isalnum())
 
 
-def get_video_bitrate(video_file):
-    """Get video bitrate in kbit/s using ffprobe with multiple fallback mechanisms"""
-    try:
-        # Primary + Fallback 1: Try to get BPS from stream tags (MKV) and bit_rate field (MP4)
-        cmd = [
-            'ffprobe', '-v', 'error',
-            '-select_streams', 'v:0',
-            '-show_entries', 'stream=bit_rate:stream_tags=BPS',
-            '-of', 'json',
-            video_file
-        ]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if 'streams' in data and len(data['streams']) > 0:
-                stream = data['streams'][0]
-
-                # Primary: Try BPS from stream tags (MKV containers)
-                tags = stream.get('tags', {})
-                bps = tags.get('BPS')
-                if bps:
-                    # BPS is in bit/s, convert to kbit/s
-                    return int(int(bps) / 1000)
-
-                # Fallback 1: Try bit_rate field (MP4 and other containers)
-                bit_rate = stream.get('bit_rate')
-                if bit_rate:
-                    # bit_rate is in bit/s, convert to kbit/s
-                    return int(int(bit_rate) / 1000)
-
-        # Fallback 2: Try format-level bitrate
-        cmd = [
-            'ffprobe', '-v', 'error',
-            '-show_entries', 'format=bit_rate',
-            '-of', 'json',
-            video_file
-        ]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if 'format' in data:
-                format_bitrate = data['format'].get('bit_rate')
-                if format_bitrate:
-                    # Format bitrate includes all streams, but it's better than nothing
-                    # Convert from bit/s to kbit/s
-                    return int(int(format_bitrate) / 1000)
-
-        # Fallback 3: Try MediaInfo
-        cmd = ['mediainfo', '--Output=JSON', video_file]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if data.get('media') and 'track' in data['media']:
-                for track in data['media']['track']:
-                    if track.get('@type') == 'Video':
-                        # Try BitRate field (in bit/s)
-                        bitrate = track.get('BitRate')
-                        if bitrate:
-                            # Convert from bit/s to kbit/s
-                            return int(int(bitrate) / 1000)
-                        # Try BitRate_String (e.g., "55.3 Mb/s")
-                        bitrate_str = track.get('BitRate_String')
-                        if bitrate_str:
-                            result = parse_bitrate_string(bitrate_str)
-                            if result:
-                                return result
-    except Exception as e:
-        print(f"Error getting video bitrate: {e}")
-    return None
+def _ffprobe_family(codec_name):
+    """Normalize an ffprobe codec_name to the same family token set."""
+    n = (codec_name or '').lower()
+    if 'truehd' in n or n == 'mlp':
+        return 'truehd'
+    if n == 'eac3':
+        return 'eac3'
+    if n == 'ac3':
+        return 'ac3'
+    if n in ('dts', 'dca'):
+        return 'dts'
+    if 'aac' in n:
+        return 'aac'
+    if 'flac' in n:
+        return 'flac'
+    if n.startswith('pcm'):
+        return 'pcm'
+    if 'alac' in n:
+        return 'alac'
+    if 'opus' in n:
+        return 'opus'
+    if 'vorbis' in n:
+        return 'vorbis'
+    if n in ('mp1', 'mp2', 'mp3'):
+        return 'mp3'
+    return n
 
 
-def get_channel_count(track_or_stream, is_mediainfo=True):
+def _merge_audio_tracks(ap_tracks, ff_streams):
     """
-    Extract the channel count from a MediaInfo track or ffprobe stream.
-    
-    Args:
-        track_or_stream: MediaInfo track dict or ffprobe stream dict
-        is_mediainfo: True if MediaInfo track, False if ffprobe stream
-        
-    Returns:
-        int: Number of channels, or 0 if unable to parse
+    Combine audioprobe tracks (authoritative codec/layout/language) with the
+    matching ffprobe stream (Atmos/DTS:X flags + bitrate).
+
+    audioprobe and ffprobe both enumerate audio tracks in container order, so a
+    positional match is tried first and validated by codec family; a family +
+    language scan is the fallback for divergent orderings.
     """
-    if is_mediainfo:
-        channels = track_or_stream.get('Channels', '')
+    merged = []
+    used = set()
+
+    for i, ap in enumerate(ap_tracks):
+        fam = _audio_family(ap.get('codec'))
+        language = (ap.get('language') or '').lower()
+        ff = None
+
+        # 1) Positional match with family confirmation
+        if i < len(ff_streams) and i not in used \
+                and _ffprobe_family(ff_streams[i].get('codec_name')) == fam:
+            ff = ff_streams[i]
+            used.add(i)
+        else:
+            # 2) Family + language, then family only
+            for j, cand in enumerate(ff_streams):
+                if j in used or _ffprobe_family(cand.get('codec_name')) != fam:
+                    continue
+                if language and cand.get('language') == language:
+                    ff = cand
+                    used.add(j)
+                    break
+            if ff is None:
+                for j, cand in enumerate(ff_streams):
+                    if j in used or _ffprobe_family(cand.get('codec_name')) != fam:
+                        continue
+                    ff = cand
+                    used.add(j)
+                    break
+
+        ff = ff or {}
+        merged.append({
+            'codec': ap.get('codec') or '',
+            'channels': ap.get('channels') or 0,
+            'layout': ap.get('layout') or '',
+            'language': language,
+            'is_atmos': bool(ff.get('is_atmos')),
+            'is_dtsx': bool(ff.get('is_dtsx')),
+            'is_imax': bool(ff.get('is_imax')),
+            'bit_rate': ff.get('bit_rate'),
+            'bps': ff.get('bps'),
+        })
+
+    return merged
+
+
+def _audio_quality_score(track):
+    """Quality score for a merged audio track. Higher = better."""
+    c = (track.get('codec') or '').lower()
+    is_atmos = track.get('is_atmos')
+    is_dtsx = track.get('is_dtsx')
+
+    # Object-based audio with lossless base codec (highest quality)
+    if is_atmos and ('truehd' in c or c == 'mlp'):
+        return 1000
+    if is_dtsx and 'dts-hd ma' in c:
+        return 1000
+
+    # Object-based audio with lossy base codec
+    if is_dtsx:
+        return 950
+    if is_atmos and 'e-ac-3' in c:
+        return 900
+    if is_atmos and ('ac-3' in c or c == 'ac3'):
+        return 850
+    if is_atmos:
+        return 900
+
+    # Lossless
+    if 'dts-hd ma' in c:
+        return 700
+    if 'truehd' in c or c == 'mlp':
+        return 700
+    if 'flac' in c:
+        return 650
+    if 'pcm' in c or 'lpcm' in c:
+        return 650
+    if 'alac' in c:
+        return 640
+
+    # High-resolution lossy
+    if 'dts-hd hra' in c:
+        return 600
+
+    # Standard lossy
+    if c.startswith('dts'):
+        return 500
+    if 'e-ac-3' in c:
+        return 400
+    if 'ac-3' in c or c == 'ac3':
+        return 300
+    if 'aac' in c:
+        return 250
+    if 'opus' in c:
+        return 200
+    if 'vorbis' in c:
+        return 150
+    if c in ('mp1', 'mp2', 'mp3') or 'mpeg' in c:
+        return 100
+    return 0
+
+
+def _select_best_audio(merged):
+    """
+    Select the best audio track: preferred language, then English, then any;
+    within each group by codec quality, then channel count.
+    """
+    if not merged:
+        return None
+
+    preferred_lang_codes = config.LANGUAGE_CODE_MAP.get(
+        config.CONTENT_LANGUAGE, [config.CONTENT_LANGUAGE.lower()])
+    english_lang_codes = config.LANGUAGE_CODE_MAP.get(
+        'en', ['eng', 'en', 'english'])
+
+    def channels_of(t):
         try:
-            return int(channels) if channels else 0
+            return int(t.get('channels') or 0)
         except (ValueError, TypeError):
             return 0
-    else:
-        return track_or_stream.get('channels', 0) or 0
+
+    def best_of(group):
+        if not group:
+            return None
+        return max(group, key=lambda t: (
+            _audio_quality_score(t), channels_of(t)))
+
+    preferred = [t for t in merged if t['language'] in preferred_lang_codes]
+    english = [t for t in merged if t['language'] in english_lang_codes]
+
+    return best_of(preferred) or best_of(english) or best_of(merged)
 
 
-def get_codec_quality_score(track_or_stream, is_mediainfo=True):
-    """
-    Get a quality score for an audio codec. Higher score = better quality.
-    
-    Args:
-        track_or_stream: MediaInfo track dict or ffprobe stream dict
-        is_mediainfo: True if MediaInfo track, False if ffprobe stream
-        
-    Returns:
-        int: Quality score (higher is better)
-    """
-    if is_mediainfo:
-        format_commercial = track_or_stream.get('Format_Commercial_IfAny', '').upper()
-        format_name = track_or_stream.get('Format', '').upper()
-        format_additional = track_or_stream.get('Format_AdditionalFeatures', '').upper()
-        title = track_or_stream.get('Title', '').upper()
-        
-        # Check for DTS:X variants (check before other DTS formats)
-        is_dtsx = ('DTS:X' in format_commercial or 'DTS-X' in format_commercial or
-                   'DTS XLL X' in format_name or 'XLL X' in format_name or
-                   'DTS:X' in format_additional or 'DTS:X' in title or 'DTS-X' in title)
-        
-        # Check for Dolby Atmos variants (check before other Dolby formats)
-        is_atmos = 'DOLBY ATMOS' in format_commercial or 'ATMOS' in format_commercial
-        
-        # Object-based audio with lossless base codec (highest quality)
-        if is_atmos and ('TRUEHD' in format_name or 'TRUEHD' in format_commercial or 'MLP FBA' in format_name):
-            return 1000  # TrueHD Atmos
-        if is_dtsx and ('DTS XLL' in format_name or 'DTS-HD MASTER AUDIO' in format_commercial):
-            return 1000  # DTS-HD MA with DTS:X
-        
-        # Object-based audio with lossy base codec
-        if is_dtsx:
-            return 950  # DTS:X (non-MA variant)
-        if is_atmos and ('E-AC-3' in format_name or 'E-AC-3' in format_commercial):
-            return 900  # E-AC-3 Atmos
-        if is_atmos and format_name == 'AC-3':  # Exact match to avoid matching E-AC-3
-            return 850  # AC-3 Atmos (rare)
-        if is_atmos:
-            return 900  # Generic Atmos (assume E-AC-3 quality)
-        
-        # Lossless codecs (no object-based audio)
-        if 'DTS XLL' in format_name or 'DTS-HD MASTER AUDIO' in format_commercial:
-            return 700  # DTS-HD MA
-        if 'TRUEHD' in format_name or 'MLP FBA' in format_name:
-            return 700  # TrueHD
-        if format_name == 'FLAC':
-            return 650  # FLAC
-        if format_name == 'PCM':
-            return 650  # PCM
-        
-        # High-resolution lossy codecs
-        if 'DTS XBR' in format_name or 'DTS-HD HIGH RESOLUTION' in format_commercial:
-            return 600  # DTS-HD HRA
-        if 'DTS-HD' in format_commercial:
-            return 550  # Generic DTS-HD
-        
-        # Standard lossy codecs
-        if format_name == 'DTS':
-            return 500  # DTS
-        if 'E-AC-3' in format_name or 'E-AC-3' in format_commercial:
-            return 400  # Dolby Digital Plus
-        if format_name == 'AC-3':
-            return 300  # Dolby Digital
-        if format_name == 'AAC':
-            return 250  # AAC
-        if format_name == 'OPUS':
-            return 200  # Opus
-        if format_name == 'VORBIS':
-            return 150  # Vorbis
-        if 'MPEG AUDIO' in format_name:
-            return 100  # MP3
-        
-        # Unknown or other formats
-        return 0
-    else:
-        # ffprobe stream
-        codec_name = track_or_stream.get('codec_name', '').lower()
-        profile = track_or_stream.get('profile', '').lower()
-        tags = track_or_stream.get('tags', {})
-        title = tags.get('title', '').lower()
-        
-        # Check for object-based audio formats
-        is_atmos = 'atmos' in title or 'atmos' in profile
-        is_dtsx = 'dts:x' in title or 'dtsx' in title or 'dts-x' in title
-        
-        # Codec-based scoring
-        if codec_name == 'truehd':
-            return 1000 if is_atmos else 700
-        elif codec_name == 'eac3':
-            return 900 if is_atmos else 400
-        elif codec_name == 'ac3':
-            return 850 if is_atmos else 300
-        elif codec_name in ['dts', 'dca']:
-            # Check for DTS variants
-            is_ma = 'ma' in profile or 'dts-hd ma' in title or 'dts-hd master audio' in title
-            is_hra = 'hra' in profile or 'dts-hd hra' in title or 'dts-hd high resolution' in title
-            is_hd = 'hd' in profile or 'dts-hd' in title
-            
-            if is_dtsx and is_ma:
-                return 1000  # DTS-HD MA with DTS:X
-            elif is_dtsx:
-                return 950  # DTS:X (non-MA)
-            elif is_ma:
-                return 700  # DTS-HD MA
-            elif is_hra:
-                return 600  # DTS-HD HRA
-            elif is_hd:
-                return 550  # Generic DTS-HD
-            else:
-                return 500  # Standard DTS
-        elif codec_name == 'flac':
-            return 650
-        elif codec_name.startswith('pcm'):
-            return 650
-        elif codec_name == 'aac':
-            return 250
-        elif codec_name == 'opus':
-            return 200
-        elif codec_name == 'vorbis':
-            return 150
-        elif codec_name == 'mp3':
-            return 100
-        
-        # Unknown codec
-        return 0
+def _channel_suffix(track):
+    """Prefer audioprobe's LFE-aware layout, fall back to channel-count map."""
+    layout = (track.get('layout') or '').strip()
+    if layout:
+        return f" {layout}"
+    channel_str = get_channel_format(track.get('channels'))
+    return f" {channel_str}" if channel_str else ""
 
 
-def get_best_audio_track(tracks, is_mediainfo=True):
+def _audio_display_name(track):
     """
-    Get the best audio track from a list, prioritizing codec quality over channel count.
-    
-    Selection criteria (in order):
-    1. Codec quality (lossless > high-res lossy > standard lossy)
-    2. Channel count (7.1 > 5.1 > stereo)
-    
-    Args:
-        tracks: List of MediaInfo tracks or ffprobe streams
-        is_mediainfo: True if MediaInfo tracks, False if ffprobe streams
-        
-    Returns:
-        The best track/stream, or None if list is empty
+    Build the audio codec display string. Names are kept identical to the
+    previous MediaInfo/ffprobe output so the UI's substring-based audio
+    sorting (truehd+atmos, dts:x, digital plus, ...) keeps working.
     """
-    if not tracks:
+    if not track:
+        return "Unknown"
+
+    codec = track.get('codec') or ''
+    c = codec.lower()
+    cs = _channel_suffix(track)
+    is_atmos = track.get('is_atmos')
+    is_dtsx = track.get('is_dtsx')
+    is_imax = track.get('is_imax')
+
+    # Object-based audio (Atmos)
+    if is_atmos:
+        if 'truehd' in c or c == 'mlp':
+            return f'Dolby TrueHD{cs} (Atmos)'
+        if 'e-ac-3' in c or 'eac3' in c:
+            return f'Dolby Digital Plus{cs} (Atmos)'
+        if 'ac-3' in c or c == 'ac3':
+            return f'Dolby Digital{cs} (Atmos)'
+        return f'Dolby Atmos{cs}'
+
+    # Object-based audio (DTS:X)
+    if is_dtsx:
+        if is_imax:
+            return f'DTS:X (IMAX){cs}'
+        return f'DTS:X{cs}'
+
+    # Base codecs
+    if 'truehd' in c or c == 'mlp':
+        return f'Dolby TrueHD{cs}'
+    if 'e-ac-3' in c or 'eac3' in c:
+        return f'Dolby Digital Plus{cs}'
+    if 'ac-3' in c or c == 'ac3':
+        return f'Dolby Digital{cs}'
+    if 'dts-hd ma' in c:
+        return f'DTS-HD MA{cs}'
+    if 'dts-hd hra' in c:
+        return f'DTS-HD HRA{cs}'
+    if c.startswith('dts'):
+        return f'DTS{cs}'
+    if 'aac' in c:
+        return f'AAC{cs}'
+    if 'flac' in c:
+        return f'FLAC{cs}'
+    if c in ('mp1', 'mp2', 'mp3') or 'mpeg' in c:
+        return f'MP3{cs}'
+    if 'opus' in c:
+        return f'Opus{cs}'
+    if 'vorbis' in c:
+        return f'Vorbis{cs}'
+    if 'pcm' in c or 'lpcm' in c:
+        return f'PCM{cs}'
+    if 'alac' in c:
+        return f'ALAC{cs}'
+
+    return f'{codec}{cs}' if codec else "Unknown"
+
+
+def _audio_bitrate_from_track(track):
+    """Return audio bitrate in kbit/s from the selected track's ffprobe data."""
+    if not track:
         return None
-    
-    # Sort by quality score (descending), then by channel count (descending)
-    return max(tracks, key=lambda t: (
-        get_codec_quality_score(t, is_mediainfo=is_mediainfo),
-        get_channel_count(t, is_mediainfo=is_mediainfo)
-    ))
-
-
-def get_audio_bitrate(video_file):
-    """Get audio bitrate in kbit/s for the preferred language track using ffprobe with multiple fallback mechanisms"""
-    # Get language codes for the configured language and English fallback
-    preferred_lang_codes = config.LANGUAGE_CODE_MAP.get(config.CONTENT_LANGUAGE, [config.CONTENT_LANGUAGE.lower()])
-    english_lang_codes = config.LANGUAGE_CODE_MAP.get('en', ['eng', 'en', 'english'])
-
-    try:
-        # Primary + Fallback 1: Try to get BPS from stream tags (MKV) and bit_rate field (MP4)
-        cmd = [
-            'ffprobe',
-            '-v',
-            'error',
-            '-select_streams',
-            'a',
-            '-show_entries',
-            'stream=index,bit_rate,channels:stream_tags=language,BPS',
-            '-of',
-            'json',
-            video_file]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if 'streams' in data and len(data['streams']) > 0:
-                # Collect streams by language preference
-                preferred_streams = []
-                english_streams = []
-                all_streams = []
-
-                for stream in data['streams']:
-                    tags = stream.get('tags', {})
-                    language = tags.get('language', '').lower()
-                    all_streams.append(stream)
-
-                    if language in preferred_lang_codes:
-                        preferred_streams.append(stream)
-                    if language in english_lang_codes:
-                        english_streams.append(stream)
-
-                # Select stream with highest channel count from preferred language, then English, then all
-                selected_stream = (
-                    get_best_audio_track(preferred_streams, is_mediainfo=False) or 
-                    get_best_audio_track(english_streams, is_mediainfo=False) or 
-                    get_best_audio_track(all_streams, is_mediainfo=False)
-                )
-
-                if selected_stream:
-                    tags = selected_stream.get('tags', {})
-
-                    # Primary: Try BPS from stream tags (MKV containers)
-                    bps = tags.get('BPS')
-                    if bps:
-                        # BPS is in bit/s, convert to kbit/s
-                        return int(int(bps) / 1000)
-
-                    # Fallback 1: Try bit_rate field (MP4 and other containers)
-                    bit_rate = selected_stream.get('bit_rate')
-                    if bit_rate:
-                        # Convert from bit/s to kbit/s
-                        return int(int(bit_rate) / 1000)
-
-        # Fallback 2: Try format-level bitrate (less useful for audio, but worth trying)
-        cmd = [
-            'ffprobe', '-v', 'error',
-            '-show_entries', 'format=bit_rate',
-            '-of', 'json',
-            video_file
-        ]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if 'format' in data:
-                format_bitrate = data['format'].get('bit_rate')
-                if format_bitrate:
-                    # Format bitrate includes all streams, estimate audio using configured ratio
-                    # This is a rough estimate and should only be used as last resort
-                    # Convert from bit/s to kbit/s
-                    estimated_audio = int(int(format_bitrate) * config.AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO / 1000)
-                    if estimated_audio > 0:
-                        return estimated_audio
-
-        # Fallback 3: Try MediaInfo
-        cmd = ['mediainfo', '--Output=JSON', video_file]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if data.get('media') and 'track' in data['media']:
-                audio_tracks = [track for track in data['media']['track'] if track.get('@type') == 'Audio']
-                if audio_tracks:
-                    # Collect tracks by language preference
-                    preferred_tracks = []
-                    english_tracks = []
-                    all_tracks = []
-
-                    for track in audio_tracks:
-                        language = track.get('Language', '').lower()
-                        all_tracks.append(track)
-
-                        if language in preferred_lang_codes:
-                            preferred_tracks.append(track)
-                        if language in english_lang_codes:
-                            english_tracks.append(track)
-
-                    # Select track with highest channel count from preferred language, then English, then all
-                    selected_track = (
-                        get_best_audio_track(preferred_tracks, is_mediainfo=True) or 
-                        get_best_audio_track(english_tracks, is_mediainfo=True) or 
-                        get_best_audio_track(all_tracks, is_mediainfo=True)
-                    )
-
-                    if selected_track:
-                        # Try BitRate field (in bit/s)
-                        bitrate = selected_track.get('BitRate')
-                        if bitrate:
-                            # Convert from bit/s to kbit/s
-                            return int(int(bitrate) / 1000)
-                        # Try BitRate_String (e.g., "9 039 kb/s")
-                        bitrate_str = selected_track.get('BitRate_String')
-                        if bitrate_str:
-                            result = parse_bitrate_string(bitrate_str)
-                            if result:
-                                return result
-    except Exception as e:
-        print(f"Error getting audio bitrate: {e}")
+    # BPS stream tag (MKV containers)
+    bps = track.get('bps')
+    if bps:
+        try:
+            return int(int(bps) / 1000)
+        except (ValueError, TypeError):
+            pass
+    # bit_rate field (MP4 and other containers)
+    bit_rate = track.get('bit_rate')
+    if bit_rate:
+        try:
+            return int(int(bit_rate) / 1000)
+        except (ValueError, TypeError):
+            pass
     return None
 
 
-def get_audio_codec(video_file):
-    """Get audio codec with detailed profile info, preferring configured language tracks"""
-    # Get language codes for the configured language and English fallback
-    preferred_lang_codes = config.LANGUAGE_CODE_MAP.get(config.CONTENT_LANGUAGE, [config.CONTENT_LANGUAGE.lower()])
-    english_lang_codes = config.LANGUAGE_CODE_MAP.get('en', ['eng', 'en', 'english'])
-
-    # Try MediaInfo first for better format detection (especially Atmos and
-    # DTS:X)
-    audio_tracks = get_audio_info_mediainfo(video_file)
-    if audio_tracks:
-        # Collect tracks by language preference
-        preferred_tracks = []
-        english_tracks = []
-        all_tracks = []
-
-        for track in audio_tracks:
-            language = track.get('Language', '').lower()
-            all_tracks.append(track)
-
-            if language in preferred_lang_codes:
-                preferred_tracks.append(track)
-            if language in english_lang_codes:
-                english_tracks.append(track)
-
-        # Select track with highest channel count from preferred language, then English, then all
-        selected_track = (
-            get_best_audio_track(preferred_tracks, is_mediainfo=True) or 
-            get_best_audio_track(english_tracks, is_mediainfo=True) or 
-            get_best_audio_track(all_tracks, is_mediainfo=True)
-        )
-
-        if selected_track:
-            # Extract format information from MediaInfo
-            format_commercial = selected_track.get(
-                'Format_Commercial_IfAny', '')
-            format_name = selected_track.get('Format', '')
-            format_profile = selected_track.get('Format_Profile', '')
-            format_additional = selected_track.get(
-                'Format_AdditionalFeatures', '')
-            title = selected_track.get('Title', '')
-            channels = selected_track.get('Channels', '')
-
-            # Get channel format string
-            channel_str = get_channel_format(channels)
-            channel_suffix = f" {channel_str}" if channel_str else ""
-
-            # Check for IMAX in title
-            is_imax = 'imax' in title.lower()
-
-            # Detect formats using MediaInfo's commercial names and format details
-            # Dolby Atmos detection
-            if 'Dolby Atmos' in format_commercial or 'Atmos' in format_commercial:
-                if 'TrueHD' in format_name or 'TrueHD' in format_commercial:
-                    return f'Dolby TrueHD{channel_suffix} (Atmos)'
-                elif 'E-AC-3' in format_name or 'E-AC-3' in format_commercial:
-                    return f'Dolby Digital Plus{channel_suffix} (Atmos)'
-                elif 'AC-3' in format_name:
-                    return f'Dolby Digital{channel_suffix} (Atmos)'
-                else:
-                    return f'Dolby Atmos{channel_suffix}'
-
-            # DTS:X detection - check multiple fields before DTS-HD MA
-            # Check format_commercial, format_name, format_additional, and
-            # title
-            if ('DTS:X' in format_commercial or 'DTS-X' in format_commercial or
-                'DTS XLL X' in format_name or 'XLL X' in format_name or
-                'DTS:X' in format_additional or
-                    'DTS:X' in title or 'DTS-X' in title):
-                if is_imax:
-                    return f'DTS:X (IMAX){channel_suffix}'
-                return f'DTS:X{channel_suffix}'
-
-            # Standard format detection based on Format field
-            if format_name == 'MLP FBA' or 'TrueHD' in format_name:
-                return f'Dolby TrueHD{channel_suffix}'
-            elif format_name == 'E-AC-3' or 'E-AC-3' in format_commercial:
-                return f'Dolby Digital Plus{channel_suffix}'
-            elif format_name == 'AC-3':
-                return f'Dolby Digital{channel_suffix}'
-            elif 'DTS XLL' in format_name or 'DTS-HD Master Audio' in format_commercial:
-                return f'DTS-HD MA{channel_suffix}'
-            elif 'DTS XBR' in format_name or 'DTS-HD High Resolution' in format_commercial:
-                return f'DTS-HD HRA{channel_suffix}'
-            elif format_name == 'DTS':
-                if 'DTS-HD' in format_commercial:
-                    return f'DTS-HD{channel_suffix}'
-                return f'DTS{channel_suffix}'
-            elif format_name == 'AAC':
-                return f'AAC{channel_suffix}'
-            elif format_name == 'FLAC':
-                return f'FLAC{channel_suffix}'
-            elif format_name == 'MPEG Audio':
-                if 'Layer 3' in format_profile:
-                    return f'MP3{channel_suffix}'
-                return f'MPEG Audio{channel_suffix}'
-            elif format_name == 'Opus':
-                return f'Opus{channel_suffix}'
-            elif format_name == 'Vorbis':
-                return f'Vorbis{channel_suffix}'
-            elif format_name == 'PCM':
-                return f'PCM{channel_suffix}'
-            else:
-                # Return the format name if we didn't match any specific
-                # pattern
-                codec_name = format_name if format_name else 'Unknown'
-                return f'{codec_name}{channel_suffix}'
-
-    # Fallback to ffprobe if MediaInfo failed
-    try:
-        cmd = [
-            'ffprobe',
-            '-v',
-            'error',
-            '-select_streams',
-            'a',
-            '-show_entries',
-            'stream=index,codec_name,profile,channels:stream_tags=language,title',
-            '-of',
-            'json',
-            video_file]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if 'streams' in data and len(data['streams']) > 0:
-                # Collect streams by language preference
-                preferred_streams = []
-                english_streams = []
-                all_streams = []
-
-                for stream in data['streams']:
-                    tags = stream.get('tags', {})
-                    language = tags.get('language', '').lower()
-                    all_streams.append(stream)
-
-                    if language in preferred_lang_codes:
-                        preferred_streams.append(stream)
-                    if language in english_lang_codes:
-                        english_streams.append(stream)
-
-                # Select stream with highest channel count from preferred language, then English, then all
-                selected_stream = (
-                    get_best_audio_track(preferred_streams, is_mediainfo=False) or 
-                    get_best_audio_track(english_streams, is_mediainfo=False) or 
-                    get_best_audio_track(all_streams, is_mediainfo=False)
-                )
-
-                codec_name = selected_stream.get('codec_name', 'Unknown')
-                profile = selected_stream.get('profile', '').lower()
-                channels = selected_stream.get('channels', 0)
-                tags = selected_stream.get('tags', {})
-                title = tags.get('title', '').lower()
-
-                # Get channel format string
-                channel_str = get_channel_format(channels)
-                channel_suffix = f" {channel_str}" if channel_str else ""
-
-                # Detect Atmos from title or profile
-                is_atmos = 'atmos' in title or 'atmos' in profile
-                is_imax = 'imax' in title
-
-                # Format codec name with detailed profile information
-                if codec_name == 'ac3':
-                    return f'Dolby Digital{channel_suffix}'
-                elif codec_name == 'eac3':
-                    if is_atmos:
-                        return f'Dolby Digital Plus (Atmos){channel_suffix}'
-                    return f'Dolby Digital Plus{channel_suffix}'
-                elif codec_name == 'truehd':
-                    if is_atmos:
-                        return f'Dolby TrueHD (Atmos){channel_suffix}'
-                    return f'Dolby TrueHD{channel_suffix}'
-                elif codec_name in ['dts', 'dca']:
-                    if 'dts:x' in title or 'dtsx' in title or 'dts-x' in title:
-                        if is_imax:
-                            return f'DTS:X (IMAX){channel_suffix}'
-                        return f'DTS:X{channel_suffix}'
-                    elif 'ma' in profile or 'dts-hd ma' in title or 'dts-hd master audio' in title:
-                        return f'DTS-HD MA{channel_suffix}'
-                    elif 'hra' in profile or 'dts-hd hra' in title or 'dts-hd high resolution' in title:
-                        return f'DTS-HD HRA{channel_suffix}'
-                    elif 'hd' in profile or 'dts-hd' in title:
-                        return f'DTS-HD{channel_suffix}'
-                    return f'DTS{channel_suffix}'
-                elif codec_name == 'aac':
-                    return f'AAC{channel_suffix}'
-                elif codec_name == 'flac':
-                    return f'FLAC{channel_suffix}'
-                elif codec_name == 'mp3':
-                    return f'MP3{channel_suffix}'
-                elif codec_name == 'opus':
-                    return f'Opus{channel_suffix}'
-                elif codec_name == 'vorbis':
-                    return f'Vorbis{channel_suffix}'
-                elif codec_name.startswith('pcm'):
-                    return f'PCM{channel_suffix}'
-                else:
-                    return f'{codec_name.upper()}{channel_suffix}'
-    except Exception as e:
-        print(f"Error getting audio codec from ffprobe: {e}")
-    return "Unknown"
-
-
+# ---------------------------------------------------------------------------
+# Public scan entry points
+# ---------------------------------------------------------------------------
 def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_database_func,
                     get_fanart_poster_func, get_tmdb_poster_func, get_tmdb_poster_by_id_func,
                     get_tmdb_credits_func, get_cached_backdrop_path_func):
@@ -1015,15 +619,26 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
             'message': 'File already scanned'
         }
 
-    # Detect HDR format
-    hdr_info = detect_hdr_format(file_path)
-    resolution = get_video_resolution(file_path)
-    audio_codec = get_audio_codec(file_path)
+    # --- Video / HDR analysis via hdrprobe (single invocation) ---
+    print(f"[HDR] Analyzing: {os.path.basename(file_path)}")
+    hdr_report, video_track = run_hdrprobe(file_path)
+    hdr_info = hdr_info_from_track(video_track)
+    resolution = resolution_from_track(video_track)
+    video_bitrate = video_bitrate_from_track(video_track)
+    duration = hdr_report.get('duration_secs') if hdr_report else None
 
-    # Get additional metadata for media details dialog
-    duration = get_video_duration(file_path)
-    video_bitrate = get_video_bitrate(file_path)
-    audio_bitrate = get_audio_bitrate(file_path)
+    # --- Audio analysis via audioprobe + slim ffprobe (Atmos/DTS:X, bitrate) ---
+    ap_tracks = run_audioprobe(file_path)
+    ff_streams, ff_duration = run_ffprobe_audio(file_path)
+    merged_audio = _merge_audio_tracks(ap_tracks, ff_streams)
+    selected_audio = _select_best_audio(merged_audio)
+    audio_codec = _audio_display_name(selected_audio) if selected_audio else "Unknown"
+    audio_bitrate = _audio_bitrate_from_track(selected_audio)
+
+    # Duration fallback (some raw streams carry no duration in hdrprobe)
+    if duration is None:
+        duration = ff_duration
+
     file_size = os.path.getsize(file_path)
 
     # Get poster, title, and year based on IMAGE_SOURCE setting
