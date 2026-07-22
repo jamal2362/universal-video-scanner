@@ -313,50 +313,26 @@ def video_bitrate_from_track(video_track):
 # ---------------------------------------------------------------------------
 # Audio derivation (audioprobe + slim ffprobe)
 # ---------------------------------------------------------------------------
-def _audio_family(codec):
-    """Normalize an audioprobe codec name to a comparable family token."""
-    c = (codec or '').lower()
-    if 'truehd' in c or c == 'mlp':
-        return 'truehd'
-    if 'e-ac-3' in c or 'eac3' in c:
-        return 'eac3'
-    if 'ac-3' in c or c == 'ac3':
-        return 'ac3'
-    if c.startswith('dts'):
-        return 'dts'
-    if 'aac' in c:
-        return 'aac'
-    if 'flac' in c:
-        return 'flac'
-    if 'pcm' in c or 'lpcm' in c:
-        return 'pcm'
-    if 'alac' in c:
-        return 'alac'
-    if 'opus' in c:
-        return 'opus'
-    if 'vorbis' in c:
-        return 'vorbis'
-    if c in ('mp1', 'mp2', 'mp3') or 'mpeg' in c:
-        return 'mp3'
-    return ''.join(ch for ch in c if ch.isalnum())
-
-
-def _ffprobe_family(codec_name):
-    """Normalize an ffprobe codec_name to the same family token set."""
-    n = (codec_name or '').lower()
+def _codec_family(name):
+    """
+    Normalize a codec name to a comparable family token. Accepts both
+    audioprobe strings ('E-AC-3', 'DTS-HD MA') and ffprobe codec_names
+    ('eac3', 'dca'), so a track from each tool maps to the same token.
+    """
+    n = (name or '').lower()
     if 'truehd' in n or n == 'mlp':
         return 'truehd'
-    if n == 'eac3':
+    if 'eac3' in n or 'e-ac-3' in n:
         return 'eac3'
-    if n == 'ac3':
+    if 'ac-3' in n or n == 'ac3':
         return 'ac3'
-    if n in ('dts', 'dca'):
+    if n.startswith('dts') or n == 'dca':
         return 'dts'
     if 'aac' in n:
         return 'aac'
     if 'flac' in n:
         return 'flac'
-    if n.startswith('pcm'):
+    if 'pcm' in n or 'lpcm' in n:
         return 'pcm'
     if 'alac' in n:
         return 'alac'
@@ -364,9 +340,9 @@ def _ffprobe_family(codec_name):
         return 'opus'
     if 'vorbis' in n:
         return 'vorbis'
-    if n in ('mp1', 'mp2', 'mp3'):
+    if n in ('mp1', 'mp2', 'mp3') or 'mpeg' in n:
         return 'mp3'
-    return n
+    return ''.join(ch for ch in n if ch.isalnum())
 
 
 def _merge_audio_tracks(ap_tracks, ff_streams):
@@ -382,19 +358,19 @@ def _merge_audio_tracks(ap_tracks, ff_streams):
     used = set()
 
     for i, ap in enumerate(ap_tracks):
-        fam = _audio_family(ap.get('codec'))
+        fam = _codec_family(ap.get('codec'))
         language = (ap.get('language') or '').lower()
         ff = None
 
         # 1) Positional match with family confirmation
         if i < len(ff_streams) and i not in used \
-                and _ffprobe_family(ff_streams[i].get('codec_name')) == fam:
+                and _codec_family(ff_streams[i].get('codec_name')) == fam:
             ff = ff_streams[i]
             used.add(i)
         else:
             # 2) Family + language, then family only
             for j, cand in enumerate(ff_streams):
-                if j in used or _ffprobe_family(cand.get('codec_name')) != fam:
+                if j in used or _codec_family(cand.get('codec_name')) != fam:
                     continue
                 if language and cand.get('language') == language:
                     ff = cand
@@ -402,7 +378,7 @@ def _merge_audio_tracks(ap_tracks, ff_streams):
                     break
             if ff is None:
                 for j, cand in enumerate(ff_streams):
-                    if j in used or _ffprobe_family(cand.get('codec_name')) != fam:
+                    if j in used or _codec_family(cand.get('codec_name')) != fam:
                         continue
                     ff = cand
                     used.add(j)
@@ -587,20 +563,13 @@ def _audio_bitrate_from_track(track):
     """Return audio bitrate in kbit/s from the selected track's ffprobe data."""
     if not track:
         return None
-    # BPS stream tag (MKV containers)
-    bps = track.get('bps')
-    if bps:
-        try:
-            return int(int(bps) / 1000)
-        except (ValueError, TypeError):
-            pass
-    # bit_rate field (MP4 and other containers)
-    bit_rate = track.get('bit_rate')
-    if bit_rate:
-        try:
-            return int(int(bit_rate) / 1000)
-        except (ValueError, TypeError):
-            pass
+    # Prefer the BPS stream tag (MKV containers), then bit_rate (MP4 and others)
+    for value in (track.get('bps'), track.get('bit_rate')):
+        if value:
+            try:
+                return int(int(value) / 1000)
+            except (ValueError, TypeError):
+                pass
     return None
 
 
