@@ -25,8 +25,8 @@ RUN wget -q "https://github.com/matthane/hdrprobe/releases/download/v${HDRPROBE_
     && install -m 0755 "$(find /tmp/hdrprobe -type f -name hdrprobe | head -n1)" /usr/local/bin/hdrprobe \
     && rm -rf /tmp/hdrprobe /tmp/hdrprobe.tar.gz
 
-# Download and install audioprobe (prebuilt static musl binary, runs on any glibc)
-RUN wget -q "https://github.com/CE-Repo/audioprobe/releases/download/v${AUDIOPROBE_VERSION}/audioprobe-x86_64-unknown-linux-musl.zip" -O /tmp/audioprobe.zip \
+# Download and install audioprobe (prebuilt x86_64 Linux binary)
+RUN wget -q "https://github.com/CE-Repo/audioprobe/releases/download/v${AUDIOPROBE_VERSION}/audioprobe-x86_64-unknown-linux-gnu.zip" -O /tmp/audioprobe.zip \
     && mkdir -p /tmp/audioprobe \
     && unzip -q /tmp/audioprobe.zip -d /tmp/audioprobe \
     && install -m 0755 "$(find /tmp/audioprobe -type f -name audioprobe | head -n1)" /usr/local/bin/audioprobe \
