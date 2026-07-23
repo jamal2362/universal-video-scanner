@@ -8,7 +8,9 @@ import os
 import json
 import shutil
 import tempfile
+import itertools
 import subprocess
+import concurrent.futures
 from utils.media_utils import (
     get_channel_format, parse_bitrate_string,
     parse_mediainfo_int, parse_mediainfo_float
@@ -801,8 +803,16 @@ def get_audio_codec(tracks):
 
 def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_database_func,
                     get_fanart_poster_func, get_tmdb_poster_func, get_tmdb_poster_by_id_func,
-                    get_tmdb_credits_func, get_cached_backdrop_path_func):
-    """Scan a video file and extract all metadata"""
+                    get_tmdb_credits_func, get_cached_backdrop_path_func, defer_save=False):
+    """
+    Scan a video file and extract all metadata.
+
+    When ``defer_save`` is True the result is recorded in memory but the
+    database is not written here; the caller is responsible for persisting it
+    (used by bulk_scan_files to batch writes over many files). The default
+    (False) keeps the old behavior of persisting immediately, which the
+    single-file and watcher code paths rely on.
+    """
     print(f"Scanning: {file_path}")
 
     if file_path in scanned_paths:
@@ -940,7 +950,8 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
     with scan_lock:
         scanned_files[file_path] = file_info
         scanned_paths.add(file_path)
-        save_database_func()
+        if not defer_save:
+            save_database_func()
 
     print(f"✓ Scanned: {file_path} ({hdr_info.get('format')})")
 
@@ -969,13 +980,107 @@ def scan_directory(directory, scanned_paths):
     return new_files
 
 
-def background_scan_new_files(scanned_paths, scan_video_file_func):
-    """Background task to scan new files"""
+def _scan_one(scan_video_file_func, file_path):
+    """
+    Scan a single file with its own failure isolation (used as a bulk-scan
+    work item). ``scan_video_file_func`` is called with ``defer_save=True`` so
+    it does not touch the database - bulk_scan_files persists in batches.
+    Returns ``(file_path, result_or_None)``; a failure never aborts the batch.
+    """
+    try:
+        result = scan_video_file_func(file_path, defer_save=True)
+    except Exception as e:
+        print(f"Error scanning {file_path}: {e}")
+        result = None
+    return file_path, result
+
+
+def bulk_scan_files(file_paths, scan_video_file_func, save_database_func=None,
+                    max_workers=1, progress_cb=None):
+    """
+    Scan many files efficiently and safely.
+
+    - Failure isolation: one bad file never aborts the run (see _scan_one).
+    - Batched persistence: the database is written every config.SCAN_SAVE_BATCH
+      newly scanned files (and once at the end) instead of after every file,
+      avoiding O(n^2) disk I/O on a large library.
+    - Optional parallelism: with ``max_workers`` > 1, files are probed
+      concurrently. hdrprobe / MediaInfo are external processes, so worker
+      threads give real overlap; the scanner's own scan_lock keeps the shared
+      database consistent, and save_database snapshots under that lock.
+
+    ``progress_cb(completed, total, file_path, result)`` is invoked after each
+    file finishes (in completion order). Returns the count of newly scanned
+    files.
+    """
+    total = len(file_paths)
+    max_workers = max(1, max_workers)
+    save_batch = max(1, getattr(config, 'SCAN_SAVE_BATCH', 25))
+
+    scanned_new = 0
+    since_save = 0
+    completed = 0
+
+    def _persist():
+        if save_database_func:
+            try:
+                save_database_func()
+            except Exception as e:
+                print(f"Error saving database during scan: {e}")
+
+    def _handle(file_path, result):
+        nonlocal scanned_new, since_save, completed
+        completed += 1
+        if result and result.get('success'):
+            scanned_new += 1
+            since_save += 1
+            if since_save >= save_batch:
+                _persist()
+                since_save = 0
+        if progress_cb:
+            try:
+                progress_cb(completed, total, file_path, result)
+            except Exception as e:
+                print(f"Error in scan progress callback: {e}")
+
+    if max_workers == 1:
+        for file_path in file_paths:
+            fp, result = _scan_one(scan_video_file_func, file_path)
+            _handle(fp, result)
+    else:
+        # Bounded submission: keep at most max_workers probes in flight so the
+        # pending queue never balloons for a huge library.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            pending = iter(file_paths)
+            futures = {
+                executor.submit(_scan_one, scan_video_file_func, fp)
+                for fp in itertools.islice(pending, max_workers)
+            }
+            while futures:
+                done, futures = concurrent.futures.wait(
+                    futures, return_when=concurrent.futures.FIRST_COMPLETED)
+                for fut in done:
+                    fp, result = fut.result()
+                    _handle(fp, result)
+                    nxt = next(pending, None)
+                    if nxt is not None:
+                        futures.add(
+                            executor.submit(_scan_one, scan_video_file_func, nxt))
+
+    # Final flush so the last (< save_batch) results are persisted.
+    if since_save > 0:
+        _persist()
+
+    return scanned_new
+
+
+def background_scan_new_files(scanned_paths, scan_video_file_func,
+                              save_database_func=None, max_workers=None):
+    """Background task to scan new files (batched, optionally parallel)"""
     new_files = scan_directory(config.MEDIA_PATH, scanned_paths)
     print(f"Found {len(new_files)} new files to scan")
+    if not new_files:
+        return
 
-    for file_path in new_files:
-        try:
-            scan_video_file_func(file_path)
-        except Exception as e:
-            print(f"Error scanning {file_path}: {e}")
+    workers = config.SCAN_WORKERS if max_workers is None else max_workers
+    bulk_scan_files(new_files, scan_video_file_func, save_database_func, workers)

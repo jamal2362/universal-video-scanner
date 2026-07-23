@@ -89,8 +89,41 @@ def get_static_dir():
     return STATIC_DIR
 
 # Scanner configuration constants
-FILE_WRITE_DELAY = int(os.environ.get('FILE_WRITE_DELAY', '5'))
-AUTO_REFRESH_INTERVAL = int(os.environ.get('AUTO_REFRESH_INTERVAL', '10'))
+def _env_int(name, default):
+    """
+    Read an integer environment variable, falling back to ``default`` on a
+    missing, empty or non-numeric value instead of crashing the whole app at
+    startup. A single typo in a container env var should never take the
+    service down.
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == '':
+        return default
+    try:
+        return int(raw.strip())
+    except (TypeError, ValueError):
+        print(f"Warning: {name}='{raw}' is not a valid integer; using {default}")
+        return default
+
+
+FILE_WRITE_DELAY = _env_int('FILE_WRITE_DELAY', 5)
+AUTO_REFRESH_INTERVAL = _env_int('AUTO_REFRESH_INTERVAL', 10)
+
+# Number of files probed at once during a bulk scan (initial + manual scan).
+# hdrprobe and MediaInfo run as external processes, so a small worker pool
+# overlaps their I/O and cuts the total time to scan a large library.
+# Default 1 keeps the scan strictly sequential and light on resources - the
+# safest choice for a single spinning disk / NAS, where parallel reads cause
+# seek thrashing that is slower, not faster. Raise it (e.g. 2-4) only for SSD /
+# NVMe / fast network storage where concurrent reads pay off.
+SCAN_WORKERS = max(1, _env_int('SCAN_WORKERS', 1))
+
+# During a bulk scan the database is persisted every this many newly scanned
+# files instead of after every single file. Rewriting the whole JSON after each
+# file is O(n^2) disk I/O on a large library; batching keeps the scan fast and
+# light while still bounding progress loss: an interrupted scan re-reads at most
+# this many files next time. Set to 1 to persist after every file (old behavior).
+SCAN_SAVE_BATCH = max(1, _env_int('SCAN_SAVE_BATCH', 25))
 
 # Size (in MB) of the main-feature .m2ts sample extracted from a Blu-ray disc
 # image (.iso) for MediaInfo analysis. MediaInfo only needs the stream headers
@@ -98,7 +131,7 @@ AUTO_REFRESH_INTERVAL = int(os.environ.get('AUTO_REFRESH_INTERVAL', '10'))
 # without reading the whole (multi-gigabyte) file - keeping the scan fast and
 # light. Point TMPDIR at a tmpfs (e.g. /dev/shm) to keep the sample in RAM and
 # avoid disk writes entirely. Raise this only if a disc fails to be detected.
-ISO_SAMPLE_SIZE_MB = int(os.environ.get('ISO_SAMPLE_SIZE_MB', '16'))
+ISO_SAMPLE_SIZE_MB = _env_int('ISO_SAMPLE_SIZE_MB', 16)
 
 # Bitrate estimation constant for format-level fallback
 # When only format-level bitrate is available, estimate audio as 10% of total

@@ -5,12 +5,16 @@ Database operations module for managing scanned files
 """
 import os
 import json
+import tempfile
 import threading
 
 # Global data storage
 scanned_files = {}
 scanned_paths = set()
-scan_lock = threading.Lock()
+# Reentrant so save_database() can take a consistent snapshot under the lock
+# even when a caller already holds it (e.g. the scanner, the watcher and
+# cleanup_database all save while mutating under this same lock).
+scan_lock = threading.RLock()
 
 
 def load_database(db_file):
@@ -30,15 +34,44 @@ def load_database(db_file):
 
 
 def save_database(db_file):
-    """Save scanned files to database"""
+    """
+    Save scanned files to database atomically.
+
+    The whole operation - snapshot, write, swap - runs under ``scan_lock`` so
+    the on-disk file always reflects a consistent point-in-time and concurrent
+    savers can never race a stale snapshot onto disk (the lock is reentrant, so
+    callers that already hold it while mutating can save without deadlocking).
+    The JSON is written to a temp file in the same directory and swapped into
+    place with ``os.replace``; that way an interrupted write - container killed
+    mid-scan, disk full - can never leave a half-written / corrupt database
+    behind, and the previous good copy stays intact. Saves are batched and
+    small, so holding the lock across the write costs next to nothing.
+    """
+    tmp_path = None
     try:
-        with open(db_file, 'w') as f:
-            json.dump({
+        with scan_lock:
+            payload = json.dumps({
                 'files': scanned_files,
                 'paths': list(scanned_paths)
-            }, f, indent=2)
+            }, indent=2)
+
+            dir_name = os.path.dirname(db_file) or '.'
+            fd, tmp_path = tempfile.mkstemp(
+                dir=dir_name, prefix='.scanned_files_', suffix='.tmp')
+            with os.fdopen(fd, 'w') as f:
+                f.write(payload)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, db_file)
+            tmp_path = None
     except Exception as e:
         print(f"Error saving database: {e}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def cleanup_database(db_file, delete_cached_poster_func):

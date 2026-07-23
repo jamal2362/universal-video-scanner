@@ -26,7 +26,7 @@ from services import database
 from services.tmdb_service import get_tmdb_poster, get_tmdb_poster_by_id, get_tmdb_credits
 from services.fanart_service import get_fanart_poster
 from services.poster_service import delete_cached_poster, get_cached_backdrop_path, migrate_poster_urls_to_cache
-from services.video_scanner import scan_video_file, scan_directory, background_scan_new_files
+from services.video_scanner import scan_video_file, scan_directory, background_scan_new_files, bulk_scan_files
 
 # Import watcher
 from watchers.media_watcher import start_file_observer
@@ -42,7 +42,7 @@ scan_progress_queue = queue.Queue()
 
 
 # Helper function wrappers to pass dependencies to scan_video_file
-def _scan_video_file_wrapper(file_path):
+def _scan_video_file_wrapper(file_path, defer_save=False):
     """Wrapper function for scan_video_file with all dependencies"""
     return scan_video_file(
         file_path,
@@ -54,7 +54,8 @@ def _scan_video_file_wrapper(file_path):
         lambda filename: get_tmdb_poster(filename, config.TMDB_API_KEY, config.CONTENT_LANGUAGE),
         lambda tmdb_id, media_type: get_tmdb_poster_by_id(tmdb_id, media_type, config.TMDB_API_KEY, config.CONTENT_LANGUAGE),
         lambda tmdb_id, media_type: get_tmdb_credits(tmdb_id, media_type, config.TMDB_API_KEY),
-        lambda tmdb_id, poster_url: get_cached_backdrop_path(tmdb_id, poster_url, config.POSTER_CACHE_DIR)
+        lambda tmdb_id, poster_url: get_cached_backdrop_path(tmdb_id, poster_url, config.POSTER_CACHE_DIR),
+        defer_save=defer_save
     )
 
 
@@ -109,22 +110,22 @@ def manual_scan():
                 }))
                 return
 
-            # Scan each new file and send progress
-            scanned_new_count = 0
-            for i, file_path in enumerate(new_files, 1):
-                try:
-                    result = _scan_video_file_wrapper(file_path)
-                    if result and result.get('success', False):
-                        scanned_new_count += 1
-                except Exception as e:
-                    print(f"Error scanning {file_path}: {e}")
-
-                percent = int((i / total) * 100)
+            # Scan the new files (batched DB writes, optional parallelism),
+            # streaming progress to the UI as each file finishes.
+            def _report_progress(current, total_count, file_path, result):
+                percent = int((current / total_count) * 100)
                 scan_progress_queue.put(json.dumps({
-                    'current': i, 'total': total, 'percent': percent,
+                    'current': current, 'total': total_count, 'percent': percent,
                     'status': 'scanning',
                     'filename': os.path.basename(file_path)
                 }))
+
+            scanned_new_count = bulk_scan_files(
+                new_files,
+                _scan_video_file_wrapper,
+                lambda: database.save_database(config.DB_FILE),
+                config.SCAN_WORKERS,
+                _report_progress)
 
             final_count = len(database.scanned_files)
             scan_progress_queue.put(json.dumps({
@@ -440,7 +441,8 @@ def main():
     # Start initial scan automatically in background
     threading.Thread(
         target=background_scan_new_files,
-        args=(database.scanned_paths, _scan_video_file_wrapper),
+        args=(database.scanned_paths, _scan_video_file_wrapper,
+              lambda: database.save_database(config.DB_FILE), config.SCAN_WORKERS),
         daemon=True
     ).start()
     print("Initial scan started...")
