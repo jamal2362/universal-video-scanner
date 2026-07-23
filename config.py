@@ -17,7 +17,6 @@ except ImportError:
 # Environment Variables and Base Paths
 MEDIA_PATH = '/media'
 DATA_DIR = '/app/data'
-TEMP_DIR = '/app/temp'
 DB_FILE = os.path.join(DATA_DIR, 'scanned_files.json')
 POSTER_CACHE_DIR = os.path.join(DATA_DIR, 'posters')
 
@@ -27,7 +26,7 @@ FANART_API_KEY = os.environ.get('FANART_API_KEY', '')
 IMAGE_SOURCE = os.environ.get('IMAGE_SOURCE', 'tmdb').lower()
 CONTENT_LANGUAGE = os.environ.get('CONTENT_LANGUAGE', 'en').lower()
 
-# Language code mapping from ISO 639-1 to various formats used by MediaInfo/ffprobe
+# Language code mapping from ISO 639-1 to various formats used by MediaInfo
 LANGUAGE_CODE_MAP = {
     'en': ['eng', 'en', 'english'],
     'de': ['ger', 'deu', 'de', 'german'],
@@ -104,5 +103,4 @@ SUPPORTED_FORMATS = {'.mkv', '.mp4', '.m4v', '.ts', '.hevc'}
 def ensure_directories():
     """Ensure all required directories exist. Call this from main() in app.py"""
     os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(TEMP_DIR, exist_ok=True)
     os.makedirs(POSTER_CACHE_DIR, exist_ok=True)

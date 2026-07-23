@@ -27,6 +27,46 @@ def get_channel_format(channels):
         return ""
 
 
+def parse_mediainfo_int(value):
+    """
+    Parse a MediaInfo numeric field into an int.
+
+    Handles plain numbers ("3840"), float strings ("7440.192"),
+    and multi-value fields like "8 / 6" (first parsable value wins).
+
+    Returns:
+        int, or None if nothing parsable
+    """
+    if value is None:
+        return None
+    for part in str(value).split('/'):
+        try:
+            return int(float(part.strip()))
+        except ValueError:
+            continue
+    return None
+
+
+def parse_mediainfo_float(value):
+    """
+    Parse a MediaInfo numeric field into a float.
+
+    Handles plain numbers ("7440.192") and multi-value fields
+    like "7440.192 / 7440.000" (first parsable value wins).
+
+    Returns:
+        float, or None if nothing parsable
+    """
+    if value is None:
+        return None
+    for part in str(value).split('/'):
+        try:
+            return float(part.strip())
+        except ValueError:
+            continue
+    return None
+
+
 def parse_bitrate_string(bitrate_str):
     """
     Parse bitrate string from MediaInfo and convert to kbit/s.

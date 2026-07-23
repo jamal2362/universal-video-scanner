@@ -5,20 +5,19 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
     mediainfo \
     python3 \
     python3-pip \
     wget \
-    unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and install dovi_tool
-RUN wget https://github.com/quietvoid/dovi_tool/releases/download/2.3.1/dovi_tool-2.3.1-x86_64-unknown-linux-musl.tar.gz \
-    && tar -xzf dovi_tool-2.3.1-x86_64-unknown-linux-musl.tar.gz \
-    && mv dovi_tool /usr/local/bin/ \
-    && chmod +x /usr/local/bin/dovi_tool \
-    && rm dovi_tool-2.3.1-x86_64-unknown-linux-musl.tar.gz
+# Download and install hdrprobe
+RUN wget https://github.com/matthane/hdrprobe/releases/download/v0.8.0/hdrprobe-0.8.0-linux-x64-static.tar.gz -O /tmp/hdrprobe.tar.gz \
+    && mkdir -p /tmp/hdrprobe \
+    && tar -xzf /tmp/hdrprobe.tar.gz -C /tmp/hdrprobe \
+    && find /tmp/hdrprobe -type f -name hdrprobe -exec mv {} /usr/local/bin/hdrprobe \; \
+    && chmod +x /usr/local/bin/hdrprobe \
+    && rm -rf /tmp/hdrprobe /tmp/hdrprobe.tar.gz
 
 # Set working directory
 WORKDIR /app

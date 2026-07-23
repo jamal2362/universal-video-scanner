@@ -8,7 +8,7 @@ Universal Video Scanner with Web Interface - Automatic detection of HDR formats 
 - **All HDR Formats**: SDR, HDR10, HDR10+, HLG, and Dolby Vision (all profiles)
 - **Dolby Vision Analysis**: Detection of MEL (Minimum Enhancement Layer) and FEL (Full Enhancement Layer) for all Dolby Vision profiles
 - **Web Interface**: Modern dark-theme dashboard on port 2367
-- **dovi_tool Integration**: Complete RPU analysis and enhancement layer detection
+- **hdrprobe Integration**: Complete HDR metadata and RPU analysis including enhancement layer detection
 - **Docker-based**: Simple deployment with Docker Compose
 - **Manual Scan**: Fallback button for on-demand scanning
 
@@ -119,10 +119,9 @@ DoVi-Detector/
 ### Scanner Workflow
 
 1. **Watchdog** monitors `/media` for new files
-2. **ffmpeg** extracts HEVC stream from container
-3. **dovi_tool extract-rpu** extracts RPU data
-4. **dovi_tool info** analyzes RPU and determines profile/EL type
-5. **Results** are saved to JSON database
+2. **hdrprobe** analyzes the video and detects SDR, HDR10, HDR10+, HLG, and Dolby Vision (profile, EL type, CM version)
+3. **MediaInfo** extracts resolution, duration, audio codec, and bitrate information
+4. **Results** are saved to JSON database
 
 ### Static Files and Templates
 
@@ -176,7 +175,7 @@ docker-compose up -d
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FILE_WRITE_DELAY` | `5` | Wait time in seconds after file creation before scanning |
+| `FILE_WRITE_DELAY` | `5` | Interval in seconds between file size checks - new files are scanned once their size stops changing |
 | `AUTO_REFRESH_INTERVAL` | `10` | Auto-refresh interval of web UI in seconds |
 | `TMDB_API_KEY` | `` | TMDB API key for fetching movie posters (optional) |
 | `FANART_API_KEY` | `` | Fanart.tv API key for fetching thumb posters (optional) |
@@ -364,7 +363,7 @@ docker-compose restart
 # Install dependencies
 pip3 install -r requirements.txt
 
-# ffmpeg and dovi_tool must be installed manually
+# mediainfo and hdrprobe must be installed manually
 
 # Start app
 python3 app.py
@@ -382,7 +381,7 @@ python3 app.py
 
 - **Backend**: Python 3 + Flask
 - **Scanner**: watchdog (Filesystem Events)
-- **Video Analysis**: ffmpeg + dovi_tool
+- **Video Analysis**: hdrprobe + MediaInfo
 - **Container**: Docker + Docker Compose
 - **Frontend**: HTML5 + CSS3 + Vanilla JavaScript
 
@@ -402,8 +401,8 @@ Pull requests and issues are welcome!
 
 ## Credits 🙏
 
-- [dovi_tool](https://github.com/quietvoid/dovi_tool) by quietvoid
-- [FFmpeg](https://ffmpeg.org/)
+- [hdrprobe](https://github.com/matthane/hdrprobe) by matthane
+- [MediaInfo](https://mediaarea.net/en/MediaInfo)
 - [Flask](https://flask.palletsprojects.com/)
 - [Watchdog](https://github.com/gorakhargosh/watchdog)
 

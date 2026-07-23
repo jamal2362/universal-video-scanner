@@ -8,6 +8,7 @@ Flask web application for scanning and managing video files
 import os
 import re
 import json
+import time
 import threading
 import queue
 from flask import Flask, render_template, jsonify, request, send_file, Response
@@ -17,7 +18,7 @@ from flask.helpers import send_from_directory
 import config
 
 # Import utility functions
-from utils.file_utils import cleanup_temp_directory, copy_static_and_templates_to_data_dir
+from utils.file_utils import copy_static_and_templates_to_data_dir
 from utils.i18n import translate, get_request_language
 
 # Import service modules
@@ -199,11 +200,11 @@ def scan_single_file():
         # Scan the file
         result = _scan_video_file_wrapper(file_path)
 
-        if result:
+        if result and result.get('success'):
             return jsonify({
                 'success': True,
                 'message': translate('api_file_scanned_successfully', lang),
-                'file_info': result
+                'file_info': result.get('file_info')
             })
         else:
             return jsonify({
@@ -254,7 +255,6 @@ def events():
     """Server-Sent Events endpoint for real-time updates"""
     def event_stream():
         # Send a keep-alive comment every 30 seconds
-        import time
         last_keepalive = time.time()
 
         while True:
@@ -388,9 +388,6 @@ def main():
     print(f"Flask using templates from: {app.template_folder}")
     print(f"Flask using static files from: {app.static_folder}")
 
-    # Clean up any orphaned temporary files from previous runs
-    cleanup_temp_directory(config.TEMP_DIR)
-
     # Load existing database
     database.load_database(config.DB_FILE)
 
@@ -455,8 +452,6 @@ def main():
         print("Shutting down...")
         observer.stop()
         observer.join()
-        # Clean up temp directory on shutdown
-        cleanup_temp_directory(config.TEMP_DIR)
 
 
 if __name__ == '__main__':

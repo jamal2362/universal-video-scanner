@@ -68,52 +68,6 @@ def extract_title_and_year_from_tmdb(data, media_type):
     return title, year
 
 
-def get_tmdb_title_and_year_by_id(tmdb_id, media_type, tmdb_api_key, content_language):
-    """Fetch only title and year from TMDB API by ID (without poster)"""
-    if not tmdb_api_key or not REQUESTS_AVAILABLE:
-        return None, None
-
-    # Validate tmdb_id is numeric
-    if not tmdb_id or not isinstance(tmdb_id, (str, int)) or not str(tmdb_id).isdigit():
-        print(f"Invalid TMDB ID: {tmdb_id}")
-        return None, None
-
-    try:
-        url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
-
-        # Try configured language first
-        params = {'api_key': tmdb_api_key, 'language': content_language}
-        response = requests.get(url, params=params, timeout=10)
-
-        if response.status_code == 200:
-            data = response.json()
-            title, year = extract_title_and_year_from_tmdb(data, media_type)
-            if title:
-                return title, year
-
-        # If configured language request failed, try English fallback
-        if content_language != 'en' and response.status_code != 200:
-            params = {'api_key': tmdb_api_key, 'language': 'en'}
-            response = requests.get(url, params=params, timeout=10)
-
-            if response.status_code == 200:
-                data = response.json()
-                title, year = extract_title_and_year_from_tmdb(data, media_type)
-                if title:
-                    return title, year
-
-        if response.status_code not in [200, 404]:
-            print(f"TMDB API error for ID {tmdb_id}: HTTP {response.status_code}")
-    except requests.exceptions.Timeout:
-        print(f"TMDB API timeout for ID {tmdb_id}")
-    except requests.exceptions.RequestException as e:
-        print(f"TMDB API request error for ID {tmdb_id}: {e}")
-    except Exception as e:
-        print(f"Error fetching TMDB title/year by ID {tmdb_id}: {e}")
-
-    return None, None
-
-
 def get_tmdb_poster_by_id(tmdb_id, media_type, tmdb_api_key, content_language):
     """Fetch poster URL, title, year, rating, and plot from TMDB API by ID"""
     if not tmdb_api_key or not REQUESTS_AVAILABLE:
@@ -127,6 +81,7 @@ def get_tmdb_poster_by_id(tmdb_id, media_type, tmdb_api_key, content_language):
 
     try:
         url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
+        data = {}
 
         # Try configured language first
         params = {'api_key': tmdb_api_key, 'language': content_language}
@@ -190,6 +145,7 @@ def search_tmdb_poster(movie_name, media_type, tmdb_api_key, content_language):
 
     try:
         url = f'https://api.themoviedb.org/3/search/{media_type}'
+        results = []
 
         # Try configured language first
         params = {

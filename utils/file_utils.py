@@ -1,29 +1,12 @@
 # Copyright (c) 2026 Jamal2367
 # Licensed under the MIT License. See LICENSE file in the project root for full license information.
 """
-File utility functions for cleaning up files
+File utility functions for managing static files and templates
 """
 import os
 import shutil
 import stat
-
-
-def cleanup_temp_directory(temp_dir):
-    """Clean up temporary directory to prevent accumulation of orphaned files"""
-    try:
-        if os.path.exists(temp_dir):
-            for item in os.listdir(temp_dir):
-                item_path = os.path.join(temp_dir, item)
-                try:
-                    if os.path.isfile(item_path) or os.path.islink(item_path):
-                        os.unlink(item_path)
-                    elif os.path.isdir(item_path):
-                        shutil.rmtree(item_path)
-                except Exception as e:
-                    print(f"Error deleting {item_path}: {e}")
-            print(f"Cleaned up temp directory: {temp_dir}")
-    except Exception as e:
-        print(f"Error cleaning temp directory: {e}")
+import hashlib
 
 
 def make_writable(path):
@@ -98,8 +81,6 @@ def get_directory_version(directory):
     Returns:
         str: SHA256 hash representing the directory version, or empty string if directory doesn't exist
     """
-    import hashlib
-    
     if not os.path.exists(directory):
         return ""
     
@@ -204,7 +185,7 @@ def copy_static_and_templates_to_data_dir(static_src, templates_src, data_dir):
         try:
             with open(version_file, 'w') as f:
                 f.write(current_version)
-            print(f"✓ Version tracking updated")
+            print("✓ Version tracking updated")
         except Exception as e:
             print(f"Warning: Could not save version file: {e}")
     
