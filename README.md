@@ -408,6 +408,17 @@ python3 app.py
 - **Container**: Docker + Docker Compose
 - **Frontend**: HTML5 + CSS3 + Vanilla JavaScript
 
+## Tests 🧪
+
+The scanning, batched/atomic persistence and config parsing logic is covered by
+a test suite that mocks all external tools (hdrprobe / MediaInfo / 7z) and
+network access, so it runs anywhere without a media library:
+
+```bash
+pip install pytest
+pytest tests/
+```
+
 ## License 📄
 
 MIT License - see LICENSE file

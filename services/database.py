@@ -37,35 +37,33 @@ def save_database(db_file):
     """
     Save scanned files to database atomically.
 
-    The JSON is serialized under ``scan_lock`` (so it is a consistent snapshot
-    even while other threads are scanning), then written to a temp file in the
-    same directory and swapped into place with ``os.replace``. That way an
-    interrupted write - container killed mid-scan, disk full - can never leave a
-    half-written / corrupt database behind; the previous good copy stays intact.
-    The slow disk I/O happens outside the lock so concurrent scans are not
-    blocked while writing.
+    The whole operation - snapshot, write, swap - runs under ``scan_lock`` so
+    the on-disk file always reflects a consistent point-in-time and concurrent
+    savers can never race a stale snapshot onto disk (the lock is reentrant, so
+    callers that already hold it while mutating can save without deadlocking).
+    The JSON is written to a temp file in the same directory and swapped into
+    place with ``os.replace``; that way an interrupted write - container killed
+    mid-scan, disk full - can never leave a half-written / corrupt database
+    behind, and the previous good copy stays intact. Saves are batched and
+    small, so holding the lock across the write costs next to nothing.
     """
+    tmp_path = None
     try:
         with scan_lock:
             payload = json.dumps({
                 'files': scanned_files,
                 'paths': list(scanned_paths)
             }, indent=2)
-    except Exception as e:
-        print(f"Error serializing database: {e}")
-        return
 
-    tmp_path = None
-    try:
-        dir_name = os.path.dirname(db_file) or '.'
-        fd, tmp_path = tempfile.mkstemp(
-            dir=dir_name, prefix='.scanned_files_', suffix='.tmp')
-        with os.fdopen(fd, 'w') as f:
-            f.write(payload)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, db_file)
-        tmp_path = None
+            dir_name = os.path.dirname(db_file) or '.'
+            fd, tmp_path = tempfile.mkstemp(
+                dir=dir_name, prefix='.scanned_files_', suffix='.tmp')
+            with os.fdopen(fd, 'w') as f:
+                f.write(payload)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, db_file)
+            tmp_path = None
     except Exception as e:
         print(f"Error saving database: {e}")
     finally:
