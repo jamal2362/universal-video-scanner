@@ -69,9 +69,33 @@ def detect_hdr_format(video_file):
             }
 
         # --- HDR10+ (must be checked before HDR10) ---
-        if 'hdr10+' in fmt_lower or track.get('hdr10plus'):
-            print(f"  -> HDR10+ detected (hdrprobe: '{hdr_format}')")
-            return {'format': 'HDR10+', 'detail': 'HDR10+', 'profile': 'HDR10+', 'el_type': '', 'cm_version': ''}
+        hdr10plus = track.get('hdr10plus') or {}
+        if 'hdr10+' in fmt_lower or hdr10plus:
+            # hdrprobe reports the HDR10+ profile as "A" (histogram only)
+            # or "B" (Bezier tone-mapping curve) when it can be determined
+            hp_profile = str(hdr10plus.get('profile') or '').strip().upper()
+            detail = f'HDR10+ Profile {hp_profile}' if hp_profile else 'HDR10+'
+            print(f"  -> {detail} detected (hdrprobe: '{hdr_format}')")
+            return {'format': 'HDR10+', 'detail': detail, 'profile': hp_profile, 'el_type': '', 'cm_version': ''}
+
+        # --- SL-HDR1 / SL-HDR2 / SL-HDR3 ---
+        sl_hdr = track.get('sl_hdr') or {}
+        if 'sl-hdr' in fmt_lower or sl_hdr:
+            # hdrprobe reports the mode as integer: 1 (SDR base), 2 (PQ base), 3 (HLG base)
+            mode = sl_hdr.get('mode')
+            if mode in (1, 2, 3):
+                name = f'SL-HDR{mode}'
+            else:
+                name = next(
+                    (c for c in ('SL-HDR1', 'SL-HDR2', 'SL-HDR3') if c.lower() in fmt_lower),
+                    'SL-HDR')
+            print(f"  -> {name} detected (hdrprobe: '{hdr_format}')")
+            return {'format': name, 'detail': name, 'profile': '', 'el_type': '', 'cm_version': ''}
+
+        # --- HDR Vivid ---
+        if 'vivid' in fmt_lower or track.get('hdr_vivid'):
+            print(f"  -> HDR Vivid detected (hdrprobe: '{hdr_format}')")
+            return {'format': 'HDR Vivid', 'detail': 'HDR Vivid', 'profile': '', 'el_type': '', 'cm_version': ''}
 
         # --- HLG ---
         if 'hlg' in fmt_lower:

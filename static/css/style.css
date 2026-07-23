@@ -381,6 +381,19 @@ tbody tr:hover {
     color: white;
 }
 
+.hdr-sl-hdr,
+.hdr-sl-hdr1,
+.hdr-sl-hdr2,
+.hdr-sl-hdr3 {
+    background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+    color: white;
+}
+
+.hdr-hdr-vivid {
+    background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
+    color: white;
+}
+
 .hdr-sdr {
     background: #555;
     color: white;

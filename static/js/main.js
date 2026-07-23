@@ -352,6 +352,8 @@ function updateProfileStats() {
         'Profile 8': 0,
         'Profile 5': 0,
         'HDR10+': 0,
+        'SL-HDR': 0,
+        'HDR Vivid': 0,
         'HDR10': 0,
         'HLG': 0,
         'SDR': 0
@@ -395,6 +397,14 @@ function updateProfileStats() {
         ) {
             stats['HDR10+']++;
         }
+        // Check for SL-HDR1 / SL-HDR2 / SL-HDR3
+        else if (hdrFormat.includes('sl-hdr') || hdrDetail.includes('sl-hdr')) {
+            stats['SL-HDR']++;
+        }
+        // Check for HDR Vivid
+        else if (hdrFormat.includes('vivid') || hdrDetail.includes('vivid')) {
+            stats['HDR Vivid']++;
+        }
         // Check for HDR10 (but not HDR10+) - explicitly exclude HDR10+
         else if (
             (hdrFormat.includes('hdr10') ||
@@ -424,6 +434,8 @@ function updateProfileStats() {
     if (stats['Profile 8'] > 0) statsArray.push(`P8: <strong>${stats['Profile 8']}</strong>`);
     if (stats['Profile 5'] > 0) statsArray.push(`P5: <strong>${stats['Profile 5']}</strong>`);
     if (stats['HDR10+'] > 0) statsArray.push(`HDR10+: <strong>${stats['HDR10+']}</strong>`);
+    if (stats['SL-HDR'] > 0) statsArray.push(`SL-HDR: <strong>${stats['SL-HDR']}</strong>`);
+    if (stats['HDR Vivid'] > 0) statsArray.push(`HDR Vivid: <strong>${stats['HDR Vivid']}</strong>`);
     if (stats['HDR10'] > 0) statsArray.push(`HDR10: <strong>${stats['HDR10']}</strong>`);
     if (stats['HLG'] > 0) statsArray.push(`HLG: <strong>${stats['HLG']}</strong>`);
     if (stats['SDR'] > 0) statsArray.push(`SDR: <strong>${stats['SDR']}</strong>`);
@@ -461,16 +473,24 @@ function getProfileRank(hdrFormat, hdrDetail, elType) {
     if (f.includes('hdr10+') || d.includes('hdr10+') || f.includes('hdr10plus') || d.includes('hdr10plus')) {
         return 4;
     }
-    // 5: HDR (HDR10 or HLG)
-    if (f.includes('hdr10') || d.includes('hdr10') || f.includes('hlg') || d.includes('hlg') || f.includes('smpte2084') || d.includes('smpte2084')) {
+    // 5: SL-HDR1 / SL-HDR2 / SL-HDR3
+    if (f.includes('sl-hdr') || d.includes('sl-hdr')) {
         return 5;
     }
-    // 6: SDR
-    if (f.includes('sdr') || d.includes('sdr')) {
+    // 6: HDR Vivid
+    if (f.includes('vivid') || d.includes('vivid')) {
         return 6;
     }
-    // 7: fallback / unknown
-    return 7;
+    // 7: HDR (HDR10 or HLG)
+    if (f.includes('hdr10') || d.includes('hdr10') || f.includes('hlg') || d.includes('hlg') || f.includes('smpte2084') || d.includes('smpte2084')) {
+        return 7;
+    }
+    // 8: SDR
+    if (f.includes('sdr') || d.includes('sdr')) {
+        return 8;
+    }
+    // 9: fallback / unknown
+    return 9;
 }
 
 function getCmVersionRank(cmVersion) {
