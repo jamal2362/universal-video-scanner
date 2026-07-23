@@ -93,9 +93,12 @@ FILE_WRITE_DELAY = int(os.environ.get('FILE_WRITE_DELAY', '5'))
 AUTO_REFRESH_INTERVAL = int(os.environ.get('AUTO_REFRESH_INTERVAL', '10'))
 
 # Size (in MB) of the main-feature .m2ts sample extracted from a Blu-ray disc
-# image (.iso) for MediaInfo analysis. Only a prefix is read - enough for
-# MediaInfo to identify every stream without extracting the whole file.
-ISO_SAMPLE_SIZE_MB = int(os.environ.get('ISO_SAMPLE_SIZE_MB', '100'))
+# image (.iso) for MediaInfo analysis. MediaInfo only needs the stream headers
+# at the start of the clip, so a small prefix identifies every track reliably
+# without reading the whole (multi-gigabyte) file - keeping the scan fast and
+# light. Point TMPDIR at a tmpfs (e.g. /dev/shm) to keep the sample in RAM and
+# avoid disk writes entirely. Raise this only if a disc fails to be detected.
+ISO_SAMPLE_SIZE_MB = int(os.environ.get('ISO_SAMPLE_SIZE_MB', '16'))
 
 # Bitrate estimation constant for format-level fallback
 # When only format-level bitrate is available, estimate audio as 10% of total

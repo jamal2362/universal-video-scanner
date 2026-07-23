@@ -23,6 +23,11 @@ def run_hdrprobe(video_file):
     hdrprobe handles disc images (.iso) natively: it reads the disc's
     playlists, picks the main feature automatically and reports on it as if
     the underlying .m2ts stream file had been probed directly.
+
+    The image is passed by path on purpose (never piped via stdin): hdrprobe
+    memory-maps the file and reads only the bytes it needs, so probing is fast
+    regardless of image size. Feeding an extracted stream through stdin would
+    force sequential buffering and defeat that, so it is avoided.
     """
     try:
         print(f"[HDR] Analyzing: {os.path.basename(video_file)}")

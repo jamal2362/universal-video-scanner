@@ -84,8 +84,13 @@ The scanner automatically detects new files and analyzes them in the background.
 > with MediaInfo (via `7z`), no need to extract or mount the full
 > multi-gigabyte file. Because the audio languages live in the playlist,
 > `CONTENT_LANGUAGE` is honored for track selection just like for regular
-> files. The stream sample size is configurable via `ISO_SAMPLE_SIZE_MB`
-> (default `100`).
+> files.
+>
+> **Performance:** hdrprobe reads the image in place (memory-mapped, only the
+> bytes it needs), and MediaInfo only needs the stream headers, so just a
+> small prefix of the main feature is sampled - configurable via
+> `ISO_SAMPLE_SIZE_MB` (default `16`). Point `TMPDIR` at a tmpfs (e.g.
+> `/dev/shm`) to keep that sample in RAM and avoid disk writes entirely.
 
 ### Manual Scan
 
