@@ -97,7 +97,10 @@ AUTO_REFRESH_INTERVAL = int(os.environ.get('AUTO_REFRESH_INTERVAL', '10'))
 AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO = 0.1
 
 # Supported video formats
-SUPPORTED_FORMATS = {'.mkv', '.mp4', '.m4v', '.ts', '.hevc'}
+# .iso disc images and .m2ts streams are analyzed via hdrprobe, which reads
+# a disc's playlists and automatically picks the main feature (the largest
+# main-movie .m2ts) for reporting.
+SUPPORTED_FORMATS = {'.mkv', '.mp4', '.m4v', '.ts', '.m2ts', '.hevc', '.iso'}
 
 
 def ensure_directories():

@@ -14,10 +14,13 @@ from utils.media_utils import (
 import config
 
 
-def detect_hdr_format(video_file):
+def run_hdrprobe(video_file):
     """
-    Detect HDR format using hdrprobe: SDR, HDR10, HDR10+, HLG, Dolby Vision (FEL/MEL)
-    Returns dict with 'format', 'detail', 'profile', 'el_type', 'cm_version'
+    Run hdrprobe once and return the parsed JSON report, or None on failure.
+
+    hdrprobe handles disc images (.iso) natively: it reads the disc's
+    playlists, picks the main feature automatically and reports on it as if
+    the underlying .m2ts stream file had been probed directly.
     """
     try:
         print(f"[HDR] Analyzing: {os.path.basename(video_file)}")
@@ -34,9 +37,36 @@ def detect_hdr_format(video_file):
             print(
                 f"  [HDR] hdrprobe failed for "
                 f"{os.path.basename(video_file)}: {stderr}")
+            return None
+
+        return json.loads(result.stdout)
+
+    except subprocess.TimeoutExpired:
+        print(f"  [HDR] hdrprobe timed out for {os.path.basename(video_file)}")
+    except json.JSONDecodeError as e:
+        print(f"  [HDR] Failed to parse hdrprobe JSON output: {e}")
+    except FileNotFoundError:
+        print("  [HDR] hdrprobe not installed / not available in PATH")
+    except Exception as e:
+        print(f"  [HDR] Unexpected error while running hdrprobe: {e}")
+    return None
+
+
+def detect_hdr_format(video_file, report=None):
+    """
+    Detect HDR format using hdrprobe: SDR, HDR10, HDR10+, HLG, Dolby Vision (FEL/MEL)
+    Returns dict with 'format', 'detail', 'profile', 'el_type', 'cm_version'
+
+    If a pre-fetched hdrprobe ``report`` is provided it is reused, otherwise
+    hdrprobe is invoked for ``video_file``.
+    """
+    try:
+        if report is None:
+            report = run_hdrprobe(video_file)
+
+        if not report:
             return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
 
-        report = json.loads(result.stdout)
         tracks = report.get('video_tracks') or []
         if not tracks:
             print("  [HDR] hdrprobe returned no video tracks")
@@ -121,15 +151,6 @@ def detect_hdr_format(video_file):
         print("  -> No HDR metadata found: assuming SDR")
         return {'format': 'SDR', 'detail': 'SDR', 'profile': '', 'el_type': '', 'cm_version': ''}
 
-    except subprocess.TimeoutExpired:
-        print(f"  [HDR] hdrprobe timed out for {os.path.basename(video_file)}")
-        return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
-    except json.JSONDecodeError as e:
-        print(f"  [HDR] Failed to parse hdrprobe JSON output: {e}")
-        return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
-    except FileNotFoundError:
-        print("  [HDR] hdrprobe not installed / not available in PATH")
-        return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
     except Exception as e:
         print(f"  [HDR] Unexpected error while detecting HDR format: {e}")
         return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
@@ -180,12 +201,8 @@ def get_audio_tracks(tracks):
     return [t for t in tracks if t.get('@type') == 'Audio']
 
 
-def get_video_resolution(tracks):
-    """Get video resolution from MediaInfo tracks and return friendly name"""
-    video = get_video_track(tracks)
-    width = parse_mediainfo_int(video.get('Width'))
-    height = parse_mediainfo_int(video.get('Height'))
-
+def resolution_name(width, height):
+    """Map pixel width/height to a friendly resolution name"""
     if not width or not height:
         return "Unknown"
 
@@ -210,6 +227,55 @@ def get_video_resolution(tracks):
         return "480p (SD)"
     else:
         return f"{width}x{height}"
+
+
+def get_video_resolution(tracks):
+    """Get video resolution from MediaInfo tracks and return friendly name"""
+    video = get_video_track(tracks)
+    width = parse_mediainfo_int(video.get('Width'))
+    height = parse_mediainfo_int(video.get('Height'))
+    return resolution_name(width, height)
+
+
+def get_hdrprobe_video_track(report):
+    """Get the first video track dict from an hdrprobe report"""
+    tracks = (report or {}).get('video_tracks') or []
+    return tracks[0] if tracks else {}
+
+
+def get_hdrprobe_resolution(report):
+    """Get the friendly resolution name from an hdrprobe report"""
+    track = get_hdrprobe_video_track(report)
+    width = parse_mediainfo_int(track.get('width'))
+    height = parse_mediainfo_int(track.get('height'))
+    return resolution_name(width, height)
+
+
+def get_hdrprobe_duration(report):
+    """Get the file-level duration in seconds from an hdrprobe report"""
+    return parse_mediainfo_float((report or {}).get('duration_secs'))
+
+
+def get_hdrprobe_video_bitrate(report):
+    """Get the video bitrate in kbit/s from an hdrprobe report"""
+    track = get_hdrprobe_video_track(report)
+    bitrate = track.get('bitrate') or {}
+    bits_per_sec = parse_mediainfo_float(bitrate.get('bits_per_sec'))
+    if bits_per_sec:
+        return int(bits_per_sec / 1000)
+    return None
+
+
+def get_hdrprobe_main_clip(report):
+    """
+    Get the main-feature clip that hdrprobe selected from a disc image.
+
+    For .iso inputs hdrprobe reports a ``bd_iso`` object naming the playlist
+    and the .m2ts clip under BDMV/STREAM it probed. Returns None for
+    non-disc inputs.
+    """
+    bd_iso = (report or {}).get('bd_iso') or {}
+    return bd_iso.get('clip')
 
 
 def get_video_duration(tracks):
@@ -528,15 +594,30 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
             'message': 'File already scanned'
         }
 
-    # Detect HDR format via hdrprobe
-    hdr_info = detect_hdr_format(file_path)
+    is_iso = os.path.splitext(file_path)[1].lower() == '.iso'
 
-    # Get container/track metadata with a single MediaInfo call
+    # Run hdrprobe once and reuse the report for HDR detection and, for disc
+    # images, as the source of the main-feature video metadata. For an .iso
+    # hdrprobe reads the disc playlists, picks the main feature (the largest
+    # main movie .m2ts) and reports on it directly.
+    hdr_report = run_hdrprobe(file_path)
+    hdr_info = detect_hdr_format(file_path, hdr_report)
+
+    if is_iso:
+        main_clip = get_hdrprobe_main_clip(hdr_report)
+        if main_clip:
+            print(f"  [ISO] Main feature clip selected: {main_clip}")
+
+    # Get container/track metadata with a single MediaInfo call. MediaInfo's
+    # Blu-ray/ISO handling is unreliable, so fall back to hdrprobe's video
+    # metadata (which is derived from the selected main-feature .m2ts).
     tracks = get_media_info(file_path)
     resolution = get_video_resolution(tracks)
+    if resolution == "Unknown":
+        resolution = get_hdrprobe_resolution(hdr_report)
     audio_codec = get_audio_codec(tracks)
-    duration = get_video_duration(tracks)
-    video_bitrate = get_video_bitrate(tracks)
+    duration = get_video_duration(tracks) or get_hdrprobe_duration(hdr_report)
+    video_bitrate = get_video_bitrate(tracks) or get_hdrprobe_video_bitrate(hdr_report)
     audio_bitrate = get_audio_bitrate(tracks)
     file_size = os.path.getsize(file_path)
 

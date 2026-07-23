@@ -70,7 +70,14 @@ The scanner automatically detects new files and analyzes them in the background.
 - MP4 (`.mp4`)
 - M4V (`.m4v`)
 - Transport Stream (`.ts`)
+- BDAV Transport Stream (`.m2ts`)
 - HEVC Raw (`.hevc`)
+- Blu-ray Disc Image (`.iso`)
+
+> **Blu-ray disc images (`.iso`):** Decrypted disc images are supported.
+> hdrprobe reads the disc's playlists, automatically picks the main feature
+> (usually the largest main-movie `.m2ts`) and analyzes it as if the stream
+> file had been probed directly. Encrypted images are detected and rejected.
 
 ### Manual Scan
 
