@@ -6,6 +6,7 @@ Handles video file analysis, HDR detection, and metadata extraction
 """
 import os
 import json
+import tempfile
 import subprocess
 from utils.media_utils import (
     get_channel_format, parse_bitrate_string,
@@ -184,6 +185,152 @@ def get_media_info(video_file):
     except Exception as e:
         print(f"Error running MediaInfo: {e}")
     return []
+
+
+# Read size for streaming the ISO sample out of 7z (1 MiB)
+_ISO_SAMPLE_CHUNK = 1024 * 1024
+
+
+def _list_iso_m2ts(iso_path):
+    """
+    List the .m2ts streams inside a Blu-ray disc image using 7z.
+
+    Returns a list of (path_in_image, size_bytes) tuples, or [] if 7z is not
+    available or the image cannot be read.
+    """
+    try:
+        result = subprocess.run(
+            ['7z', 'l', '-slt', '-ba', iso_path],
+            capture_output=True,
+            text=True,
+            timeout=120)
+        if result.returncode != 0:
+            print(f"  [ISO] 7z listing failed: {(result.stderr or '').strip()}")
+            return []
+    except FileNotFoundError:
+        print("  [ISO] 7z (p7zip) not installed / not available in PATH")
+        return []
+    except subprocess.TimeoutExpired:
+        print("  [ISO] 7z listing timed out")
+        return []
+    except Exception as e:
+        print(f"  [ISO] Error listing disc image contents: {e}")
+        return []
+
+    entries = []
+    path = None
+    size = None
+    for line in result.stdout.splitlines():
+        if line.startswith('Path = '):
+            path = line[len('Path = '):].strip()
+        elif line.startswith('Size = '):
+            size = line[len('Size = '):].strip()
+        elif not line.strip():
+            # Blank line terminates a file's property block
+            if path and path.lower().endswith('.m2ts'):
+                try:
+                    entries.append((path, int(size)))
+                except (TypeError, ValueError):
+                    pass
+            path = None
+            size = None
+
+    # Flush a trailing block that had no terminating blank line
+    if path and path.lower().endswith('.m2ts'):
+        try:
+            entries.append((path, int(size)))
+        except (TypeError, ValueError):
+            pass
+
+    return entries
+
+
+def _stop_process(proc):
+    """Best-effort teardown of a still-running subprocess"""
+    if proc is None:
+        return
+    try:
+        if proc.stdout:
+            proc.stdout.close()
+    except Exception:
+        pass
+    try:
+        proc.terminate()
+        proc.wait(timeout=30)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def extract_iso_m2ts_sample(iso_path, clip_hint=None):
+    """
+    Extract a prefix sample of the main-feature .m2ts from a Blu-ray disc
+    image so MediaInfo can read the audio/video tracks reliably.
+
+    hdrprobe already selects the main feature; its clip name is passed as
+    ``clip_hint``. If that clip cannot be matched, the largest .m2ts in the
+    image is used (the main movie is almost always the biggest stream).
+
+    Only the first ``config.ISO_SAMPLE_SIZE_MB`` megabytes are written, which
+    is enough for MediaInfo to identify every stream without extracting the
+    whole (multi-gigabyte) file. Returns the path to a temporary sample file
+    that the caller must delete, or None on failure.
+    """
+    entries = _list_iso_m2ts(iso_path)
+    if not entries:
+        return None
+
+    target = None
+    if clip_hint:
+        hint = os.path.basename(clip_hint).lower()
+        target = next(
+            (p for p, _ in entries if os.path.basename(p).lower() == hint), None)
+    if not target:
+        # Largest .m2ts is almost always the main feature
+        target = max(entries, key=lambda entry: entry[1])[0]
+
+    sample_bytes = max(1, config.ISO_SAMPLE_SIZE_MB) * 1024 * 1024
+    print(f"  [ISO] Extracting {config.ISO_SAMPLE_SIZE_MB} MB sample from {target}")
+
+    fd, sample_path = tempfile.mkstemp(prefix='iso_sample_', suffix='.m2ts')
+    out = os.fdopen(fd, 'wb')
+    proc = None
+    try:
+        proc = subprocess.Popen(
+            ['7z', 'e', '-so', iso_path, target],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL)
+
+        written = 0
+        while written < sample_bytes:
+            chunk = proc.stdout.read(min(_ISO_SAMPLE_CHUNK, sample_bytes - written))
+            if not chunk:
+                break
+            out.write(chunk)
+            written += len(chunk)
+        out.close()
+
+        if written == 0:
+            print("  [ISO] Sample extraction produced no data")
+        else:
+            return sample_path
+    except FileNotFoundError:
+        print("  [ISO] 7z (p7zip) not installed / not available in PATH")
+    except Exception as e:
+        print(f"  [ISO] Error extracting sample: {e}")
+    finally:
+        if not out.closed:
+            out.close()
+        _stop_process(proc)
+
+    # Only reached on failure - clean up the empty/partial temp file
+    try:
+        os.remove(sample_path)
+    except OSError:
+        pass
+    return None
 
 
 def get_general_track(tracks):
@@ -603,22 +750,44 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
     hdr_report = run_hdrprobe(file_path)
     hdr_info = detect_hdr_format(file_path, hdr_report)
 
-    if is_iso:
-        main_clip = get_hdrprobe_main_clip(hdr_report)
-        if main_clip:
-            print(f"  [ISO] Main feature clip selected: {main_clip}")
+    iso_sample_path = None
+    try:
+        if is_iso:
+            main_clip = get_hdrprobe_main_clip(hdr_report)
+            if main_clip:
+                print(f"  [ISO] Main feature clip selected: {main_clip}")
+            # MediaInfo's Blu-ray/ISO handling is unreliable, so pull a sample
+            # of the main-feature .m2ts out of the image and analyze that.
+            iso_sample_path = extract_iso_m2ts_sample(file_path, main_clip)
 
-    # Get container/track metadata with a single MediaInfo call. MediaInfo's
-    # Blu-ray/ISO handling is unreliable, so fall back to hdrprobe's video
-    # metadata (which is derived from the selected main-feature .m2ts).
-    tracks = get_media_info(file_path)
-    resolution = get_video_resolution(tracks)
-    if resolution == "Unknown":
-        resolution = get_hdrprobe_resolution(hdr_report)
-    audio_codec = get_audio_codec(tracks)
-    duration = get_video_duration(tracks) or get_hdrprobe_duration(hdr_report)
-    video_bitrate = get_video_bitrate(tracks) or get_hdrprobe_video_bitrate(hdr_report)
-    audio_bitrate = get_audio_bitrate(tracks)
+        # Get container/track metadata with a single MediaInfo call, run
+        # against the extracted sample for disc images (falls back to the
+        # image itself if the sample could not be produced).
+        media_source = iso_sample_path or file_path
+        tracks = get_media_info(media_source)
+
+        resolution = get_video_resolution(tracks)
+        if resolution == "Unknown":
+            resolution = get_hdrprobe_resolution(hdr_report)
+        audio_codec = get_audio_codec(tracks)
+        audio_bitrate = get_audio_bitrate(tracks)
+
+        if is_iso:
+            # The sample is only a prefix of the clip, so its duration and
+            # overall bitrate are not representative - take those from
+            # hdrprobe, which measured the whole main feature.
+            duration = get_hdrprobe_duration(hdr_report) or get_video_duration(tracks)
+            video_bitrate = get_hdrprobe_video_bitrate(hdr_report) or get_video_bitrate(tracks)
+        else:
+            duration = get_video_duration(tracks) or get_hdrprobe_duration(hdr_report)
+            video_bitrate = get_video_bitrate(tracks) or get_hdrprobe_video_bitrate(hdr_report)
+    finally:
+        if iso_sample_path:
+            try:
+                os.remove(iso_sample_path)
+            except OSError:
+                pass
+
     file_size = os.path.getsize(file_path)
 
     # Get poster, title, and year based on IMAGE_SOURCE setting

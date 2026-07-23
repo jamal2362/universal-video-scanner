@@ -92,6 +92,11 @@ def get_static_dir():
 FILE_WRITE_DELAY = int(os.environ.get('FILE_WRITE_DELAY', '5'))
 AUTO_REFRESH_INTERVAL = int(os.environ.get('AUTO_REFRESH_INTERVAL', '10'))
 
+# Size (in MB) of the main-feature .m2ts sample extracted from a Blu-ray disc
+# image (.iso) for MediaInfo analysis. Only a prefix is read - enough for
+# MediaInfo to identify every stream without extracting the whole file.
+ISO_SAMPLE_SIZE_MB = int(os.environ.get('ISO_SAMPLE_SIZE_MB', '100'))
+
 # Bitrate estimation constant for format-level fallback
 # When only format-level bitrate is available, estimate audio as 10% of total
 AUDIO_BITRATE_FORMAT_ESTIMATE_RATIO = 0.1

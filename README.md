@@ -78,6 +78,10 @@ The scanner automatically detects new files and analyzes them in the background.
 > hdrprobe reads the disc's playlists, automatically picks the main feature
 > (usually the largest main-movie `.m2ts`) and analyzes it as if the stream
 > file had been probed directly. Encrypted images are detected and rejected.
+> To read the audio/video tracks reliably, a short sample of the selected
+> main-feature `.m2ts` is extracted from the image (via `7z`) and analyzed
+> with MediaInfo - no need to extract or mount the full multi-gigabyte file.
+> The sample size is configurable via `ISO_SAMPLE_SIZE_MB` (default `100`).
 
 ### Manual Scan
 
@@ -184,6 +188,7 @@ docker-compose up -d
 |----------|---------|-------------|
 | `FILE_WRITE_DELAY` | `5` | Interval in seconds between file size checks - new files are scanned once their size stops changing |
 | `AUTO_REFRESH_INTERVAL` | `10` | Auto-refresh interval of web UI in seconds |
+| `ISO_SAMPLE_SIZE_MB` | `100` | Size in MB of the main-feature `.m2ts` sample extracted from Blu-ray disc images (`.iso`) for MediaInfo analysis |
 | `TMDB_API_KEY` | `` | TMDB API key for fetching movie posters (optional) |
 | `FANART_API_KEY` | `` | Fanart.tv API key for fetching thumb posters (optional) |
 | `IMAGE_SOURCE` | `tmdb` | Image source selection: `tmdb` (default) or `fanart` |

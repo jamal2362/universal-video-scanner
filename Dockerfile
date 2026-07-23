@@ -4,8 +4,11 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
+# p7zip-full provides the `7z` binary used to extract a main-feature .m2ts
+# sample from Blu-ray disc images (.iso) for reliable MediaInfo analysis.
 RUN apt-get update && apt-get install -y \
     mediainfo \
+    p7zip-full \
     python3 \
     python3-pip \
     wget \
