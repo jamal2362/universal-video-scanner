@@ -6,6 +6,8 @@ Handles video file analysis, HDR detection, and metadata extraction
 """
 import os
 import json
+import shutil
+import tempfile
 import subprocess
 from utils.media_utils import (
     get_channel_format, parse_bitrate_string,
@@ -14,10 +16,18 @@ from utils.media_utils import (
 import config
 
 
-def detect_hdr_format(video_file):
+def run_hdrprobe(video_file):
     """
-    Detect HDR format using hdrprobe: SDR, HDR10, HDR10+, HLG, Dolby Vision (FEL/MEL)
-    Returns dict with 'format', 'detail', 'profile', 'el_type', 'cm_version'
+    Run hdrprobe once and return the parsed JSON report, or None on failure.
+
+    hdrprobe handles disc images (.iso) natively: it reads the disc's
+    playlists, picks the main feature automatically and reports on it as if
+    the underlying .m2ts stream file had been probed directly.
+
+    The image is passed by path on purpose (never piped via stdin): hdrprobe
+    memory-maps the file and reads only the bytes it needs, so probing is fast
+    regardless of image size. Feeding an extracted stream through stdin would
+    force sequential buffering and defeat that, so it is avoided.
     """
     try:
         print(f"[HDR] Analyzing: {os.path.basename(video_file)}")
@@ -34,9 +44,36 @@ def detect_hdr_format(video_file):
             print(
                 f"  [HDR] hdrprobe failed for "
                 f"{os.path.basename(video_file)}: {stderr}")
+            return None
+
+        return json.loads(result.stdout)
+
+    except subprocess.TimeoutExpired:
+        print(f"  [HDR] hdrprobe timed out for {os.path.basename(video_file)}")
+    except json.JSONDecodeError as e:
+        print(f"  [HDR] Failed to parse hdrprobe JSON output: {e}")
+    except FileNotFoundError:
+        print("  [HDR] hdrprobe not installed / not available in PATH")
+    except Exception as e:
+        print(f"  [HDR] Unexpected error while running hdrprobe: {e}")
+    return None
+
+
+def detect_hdr_format(video_file, report=None):
+    """
+    Detect HDR format using hdrprobe: SDR, HDR10, HDR10+, HLG, Dolby Vision (FEL/MEL)
+    Returns dict with 'format', 'detail', 'profile', 'el_type', 'cm_version'
+
+    If a pre-fetched hdrprobe ``report`` is provided it is reused, otherwise
+    hdrprobe is invoked for ``video_file``.
+    """
+    try:
+        if report is None:
+            report = run_hdrprobe(video_file)
+
+        if not report:
             return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
 
-        report = json.loads(result.stdout)
         tracks = report.get('video_tracks') or []
         if not tracks:
             print("  [HDR] hdrprobe returned no video tracks")
@@ -121,15 +158,6 @@ def detect_hdr_format(video_file):
         print("  -> No HDR metadata found: assuming SDR")
         return {'format': 'SDR', 'detail': 'SDR', 'profile': '', 'el_type': '', 'cm_version': ''}
 
-    except subprocess.TimeoutExpired:
-        print(f"  [HDR] hdrprobe timed out for {os.path.basename(video_file)}")
-        return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
-    except json.JSONDecodeError as e:
-        print(f"  [HDR] Failed to parse hdrprobe JSON output: {e}")
-        return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
-    except FileNotFoundError:
-        print("  [HDR] hdrprobe not installed / not available in PATH")
-        return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
     except Exception as e:
         print(f"  [HDR] Unexpected error while detecting HDR format: {e}")
         return {'format': 'Unknown', 'detail': 'Error', 'profile': '', 'el_type': '', 'cm_version': ''}
@@ -165,6 +193,205 @@ def get_media_info(video_file):
     return []
 
 
+# Read size for streaming ISO members out of 7z (1 MiB)
+_ISO_SAMPLE_CHUNK = 1024 * 1024
+
+
+def _list_iso_files(iso_path):
+    """
+    List every file inside a disc image using 7z.
+
+    Returns a list of (path_in_image, size_bytes) tuples, or [] if 7z is not
+    available or the image cannot be read.
+    """
+    try:
+        result = subprocess.run(
+            ['7z', 'l', '-slt', '-ba', iso_path],
+            capture_output=True,
+            text=True,
+            timeout=120)
+        if result.returncode != 0:
+            print(f"  [ISO] 7z listing failed: {(result.stderr or '').strip()}")
+            return []
+    except FileNotFoundError:
+        print("  [ISO] 7z (p7zip) not installed / not available in PATH")
+        return []
+    except subprocess.TimeoutExpired:
+        print("  [ISO] 7z listing timed out")
+        return []
+    except Exception as e:
+        print(f"  [ISO] Error listing disc image contents: {e}")
+        return []
+
+    entries = []
+    path = None
+    size = None
+    for line in result.stdout.splitlines():
+        if line.startswith('Path = '):
+            path = line[len('Path = '):].strip()
+        elif line.startswith('Size = '):
+            size = line[len('Size = '):].strip()
+        elif not line.strip():
+            # Blank line terminates a file's property block
+            if path is not None:
+                try:
+                    entries.append((path, int(size)))
+                except (TypeError, ValueError):
+                    pass
+            path = None
+            size = None
+
+    # Flush a trailing block that had no terminating blank line
+    if path is not None:
+        try:
+            entries.append((path, int(size)))
+        except (TypeError, ValueError):
+            pass
+
+    return entries
+
+
+def _members_with_ext(entries, ext):
+    """Filter a disc file listing down to members with the given extension"""
+    ext = ext.lower()
+    return [(p, s) for p, s in entries if p.lower().endswith(ext)]
+
+
+def _pick_member(members, hint=None):
+    """
+    Pick a disc member by basename ``hint`` (e.g. hdrprobe's selected clip or
+    playlist), falling back to the largest member. Returns the path or None.
+    """
+    if not members:
+        return None
+    if hint:
+        hint = os.path.basename(hint).lower()
+        match = next(
+            (p for p, _ in members if os.path.basename(p).lower() == hint), None)
+        if match:
+            return match
+    # Largest member is almost always the main feature / main playlist
+    return max(members, key=lambda entry: entry[1])[0]
+
+
+def _stop_process(proc):
+    """Best-effort teardown of a still-running subprocess"""
+    if proc is None:
+        return
+    try:
+        if proc.stdout:
+            proc.stdout.close()
+    except Exception:
+        pass
+    try:
+        proc.terminate()
+        proc.wait(timeout=30)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def _extract_iso_member(iso_path, member, dest_file, max_bytes=None):
+    """
+    Extract ``member`` from the disc image into ``dest_file`` using 7z.
+
+    If ``max_bytes`` is given only that many leading bytes are written (used to
+    take a small sample of a multi-gigabyte .m2ts); otherwise the whole file is
+    written (used for the tiny .mpls / .clpi metadata files). Returns the number
+    of bytes written, or -1 on failure.
+    """
+    proc = None
+    written = 0
+    try:
+        proc = subprocess.Popen(
+            ['7z', 'e', '-so', iso_path, member],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL)
+        with open(dest_file, 'wb') as out:
+            while max_bytes is None or written < max_bytes:
+                to_read = _ISO_SAMPLE_CHUNK
+                if max_bytes is not None:
+                    to_read = min(_ISO_SAMPLE_CHUNK, max_bytes - written)
+                chunk = proc.stdout.read(to_read)
+                if not chunk:
+                    break
+                out.write(chunk)
+                written += len(chunk)
+        return written
+    except FileNotFoundError:
+        print("  [ISO] 7z (p7zip) not installed / not available in PATH")
+    except Exception as e:
+        print(f"  [ISO] Error extracting {member}: {e}")
+    finally:
+        _stop_process(proc)
+    return -1
+
+
+def prepare_iso_main_feature(iso_path, clip_hint=None, playlist_hint=None):
+    """
+    Reconstruct a minimal BDMV structure for a disc image's main feature so
+    MediaInfo can analyze it reliably - including per-track audio language,
+    which lives in the playlist (.mpls), not in the raw .m2ts stream.
+
+    A temp directory is populated with:
+      - BDMV/STREAM/<clip>.m2ts   : a prefix sample of the main-feature clip
+      - BDMV/PLAYLIST/<name>.mpls : the main playlist (carries languages)
+      - BDMV/CLIPINF/<clip>.clpi  : the clip's stream metadata (best effort)
+
+    ``clip_hint`` / ``playlist_hint`` are hdrprobe's selected main-feature clip
+    and playlist; when absent the largest .m2ts / .mpls are used.
+
+    Returns a dict ``{'temp_dir', 'playlist_file', 'sample_file'}`` (the caller
+    must delete ``temp_dir``) or None if no stream could be extracted.
+    """
+    entries = _list_iso_files(iso_path)
+    m2ts = _members_with_ext(entries, '.m2ts')
+    if not m2ts:
+        return None
+
+    clip_member = _pick_member(m2ts, clip_hint)
+    clip_name = os.path.basename(clip_member)
+    clip_base = os.path.splitext(clip_name)[0]
+
+    temp_dir = tempfile.mkdtemp(prefix='iso_bdmv_')
+    stream_dir = os.path.join(temp_dir, 'BDMV', 'STREAM')
+    playlist_dir = os.path.join(temp_dir, 'BDMV', 'PLAYLIST')
+    clipinf_dir = os.path.join(temp_dir, 'BDMV', 'CLIPINF')
+    for directory in (stream_dir, playlist_dir, clipinf_dir):
+        os.makedirs(directory, exist_ok=True)
+
+    # Main-feature stream sample (bounded - enough for MediaInfo to read tracks)
+    sample_bytes = max(1, config.ISO_SAMPLE_SIZE_MB) * 1024 * 1024
+    sample_file = os.path.join(stream_dir, clip_name)
+    print(f"  [ISO] Extracting {config.ISO_SAMPLE_SIZE_MB} MB sample from {clip_member}")
+    if _extract_iso_member(iso_path, clip_member, sample_file, sample_bytes) <= 0:
+        print("  [ISO] Sample extraction produced no data")
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return None
+
+    # Main playlist (carries the per-track audio language codes)
+    playlist_file = None
+    playlist_member = _pick_member(_members_with_ext(entries, '.mpls'), playlist_hint)
+    if playlist_member:
+        dest = os.path.join(playlist_dir, os.path.basename(playlist_member))
+        if _extract_iso_member(iso_path, playlist_member, dest) > 0:
+            playlist_file = dest
+            print(f"  [ISO] Using playlist for language info: {os.path.basename(playlist_member)}")
+
+    # Clip info matching the sampled stream (helps MediaInfo resolve the playlist)
+    clpi_member = next(
+        (p for p, _ in _members_with_ext(entries, '.clpi')
+         if os.path.splitext(os.path.basename(p))[0] == clip_base), None)
+    if clpi_member:
+        _extract_iso_member(
+            iso_path, clpi_member,
+            os.path.join(clipinf_dir, os.path.basename(clpi_member)))
+
+    return {'temp_dir': temp_dir, 'playlist_file': playlist_file, 'sample_file': sample_file}
+
+
 def get_general_track(tracks):
     """Get the General track from a MediaInfo track list"""
     return next((t for t in tracks if t.get('@type') == 'General'), {})
@@ -180,12 +407,8 @@ def get_audio_tracks(tracks):
     return [t for t in tracks if t.get('@type') == 'Audio']
 
 
-def get_video_resolution(tracks):
-    """Get video resolution from MediaInfo tracks and return friendly name"""
-    video = get_video_track(tracks)
-    width = parse_mediainfo_int(video.get('Width'))
-    height = parse_mediainfo_int(video.get('Height'))
-
+def resolution_name(width, height):
+    """Map pixel width/height to a friendly resolution name"""
     if not width or not height:
         return "Unknown"
 
@@ -210,6 +433,66 @@ def get_video_resolution(tracks):
         return "480p (SD)"
     else:
         return f"{width}x{height}"
+
+
+def get_video_resolution(tracks):
+    """Get video resolution from MediaInfo tracks and return friendly name"""
+    video = get_video_track(tracks)
+    width = parse_mediainfo_int(video.get('Width'))
+    height = parse_mediainfo_int(video.get('Height'))
+    return resolution_name(width, height)
+
+
+def get_hdrprobe_video_track(report):
+    """Get the first video track dict from an hdrprobe report"""
+    tracks = (report or {}).get('video_tracks') or []
+    return tracks[0] if tracks else {}
+
+
+def get_hdrprobe_resolution(report):
+    """Get the friendly resolution name from an hdrprobe report"""
+    track = get_hdrprobe_video_track(report)
+    width = parse_mediainfo_int(track.get('width'))
+    height = parse_mediainfo_int(track.get('height'))
+    return resolution_name(width, height)
+
+
+def get_hdrprobe_duration(report):
+    """Get the file-level duration in seconds from an hdrprobe report"""
+    return parse_mediainfo_float((report or {}).get('duration_secs'))
+
+
+def get_hdrprobe_video_bitrate(report):
+    """Get the video bitrate in kbit/s from an hdrprobe report"""
+    track = get_hdrprobe_video_track(report)
+    bitrate = track.get('bitrate') or {}
+    bits_per_sec = parse_mediainfo_float(bitrate.get('bits_per_sec'))
+    if bits_per_sec:
+        return int(bits_per_sec / 1000)
+    return None
+
+
+def get_hdrprobe_main_clip(report):
+    """
+    Get the main-feature clip that hdrprobe selected from a disc image.
+
+    For .iso inputs hdrprobe reports a ``bd_iso`` object naming the playlist
+    and the .m2ts clip under BDMV/STREAM it probed. Returns None for
+    non-disc inputs.
+    """
+    bd_iso = (report or {}).get('bd_iso') or {}
+    return bd_iso.get('clip')
+
+
+def get_hdrprobe_main_playlist(report):
+    """
+    Get the main-feature playlist that hdrprobe selected from a disc image.
+
+    For .iso inputs hdrprobe reports a ``bd_iso`` object naming the .mpls
+    playlist it played back. Returns None for non-disc inputs.
+    """
+    bd_iso = (report or {}).get('bd_iso') or {}
+    return bd_iso.get('playlist')
 
 
 def get_video_duration(tracks):
@@ -528,16 +811,62 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
             'message': 'File already scanned'
         }
 
-    # Detect HDR format via hdrprobe
-    hdr_info = detect_hdr_format(file_path)
+    is_iso = os.path.splitext(file_path)[1].lower() == '.iso'
 
-    # Get container/track metadata with a single MediaInfo call
-    tracks = get_media_info(file_path)
-    resolution = get_video_resolution(tracks)
-    audio_codec = get_audio_codec(tracks)
-    duration = get_video_duration(tracks)
-    video_bitrate = get_video_bitrate(tracks)
-    audio_bitrate = get_audio_bitrate(tracks)
+    # Run hdrprobe once and reuse the report for HDR detection and, for disc
+    # images, as the source of the main-feature video metadata. For an .iso
+    # hdrprobe reads the disc playlists, picks the main feature (the largest
+    # main movie .m2ts) and reports on it directly.
+    hdr_report = run_hdrprobe(file_path)
+    hdr_info = detect_hdr_format(file_path, hdr_report)
+
+    iso_prep = None
+    try:
+        if is_iso:
+            main_clip = get_hdrprobe_main_clip(hdr_report)
+            main_playlist = get_hdrprobe_main_playlist(hdr_report)
+            if main_clip:
+                print(f"  [ISO] Main feature clip selected: {main_clip}")
+            # MediaInfo's Blu-ray/ISO handling is unreliable, so reconstruct a
+            # minimal BDMV (main-feature .m2ts sample + playlist + clip info)
+            # and analyze that. Pointing MediaInfo at the playlist lets it
+            # report the per-track audio language, so CONTENT_LANGUAGE is
+            # honored just like for regular files.
+            iso_prep = prepare_iso_main_feature(file_path, main_clip, main_playlist)
+
+            tracks = []
+            if iso_prep and iso_prep['playlist_file']:
+                tracks = get_media_info(iso_prep['playlist_file'])
+                if get_audio_tracks(tracks):
+                    print("  [ISO] Audio tracks read via playlist (languages available)")
+                else:
+                    tracks = []
+            if not tracks:
+                # Fall back to the bare stream sample (no per-track language)
+                sample = iso_prep['sample_file'] if iso_prep else None
+                tracks = get_media_info(sample or file_path)
+        else:
+            tracks = get_media_info(file_path)
+
+        resolution = get_video_resolution(tracks)
+        if resolution == "Unknown":
+            resolution = get_hdrprobe_resolution(hdr_report)
+        audio_codec = get_audio_codec(tracks)
+        audio_bitrate = get_audio_bitrate(tracks)
+
+        if is_iso:
+            # The stream is only a prefix of the clip, so its duration and
+            # overall bitrate are not representative - take those from
+            # hdrprobe, which measured the whole main feature.
+            duration = get_hdrprobe_duration(hdr_report) or get_video_duration(tracks)
+            video_bitrate = get_hdrprobe_video_bitrate(hdr_report) or get_video_bitrate(tracks)
+        else:
+            duration = get_video_duration(tracks) or get_hdrprobe_duration(hdr_report)
+            video_bitrate = get_video_bitrate(tracks) or get_hdrprobe_video_bitrate(hdr_report)
+    finally:
+        if iso_prep and iso_prep.get('temp_dir'):
+            shutil.rmtree(iso_prep['temp_dir'], ignore_errors=True)
+
     file_size = os.path.getsize(file_path)
 
     # Get poster, title, and year based on IMAGE_SOURCE setting

@@ -70,7 +70,27 @@ The scanner automatically detects new files and analyzes them in the background.
 - MP4 (`.mp4`)
 - M4V (`.m4v`)
 - Transport Stream (`.ts`)
+- BDAV Transport Stream (`.m2ts`)
 - HEVC Raw (`.hevc`)
+- Blu-ray Disc Image (`.iso`)
+
+> **Blu-ray disc images (`.iso`):** Decrypted disc images are supported.
+> hdrprobe reads the disc's playlists, automatically picks the main feature
+> (usually the largest main-movie `.m2ts`) and analyzes it as if the stream
+> file had been probed directly. Encrypted images are detected and rejected.
+> To read the audio/video tracks reliably, a minimal BDMV structure is
+> reconstructed for the main feature - the playlist (`.mpls`) and clip info
+> (`.clpi`) plus a short sample of the main-feature `.m2ts` - and analyzed
+> with MediaInfo (via `7z`), no need to extract or mount the full
+> multi-gigabyte file. Because the audio languages live in the playlist,
+> `CONTENT_LANGUAGE` is honored for track selection just like for regular
+> files.
+>
+> **Performance:** hdrprobe reads the image in place (memory-mapped, only the
+> bytes it needs), and MediaInfo only needs the stream headers, so just a
+> small prefix of the main feature is sampled - configurable via
+> `ISO_SAMPLE_SIZE_MB` (default `16`). Point `TMPDIR` at a tmpfs (e.g.
+> `/dev/shm`) to keep that sample in RAM and avoid disk writes entirely.
 
 ### Manual Scan
 
@@ -177,6 +197,7 @@ docker-compose up -d
 |----------|---------|-------------|
 | `FILE_WRITE_DELAY` | `5` | Interval in seconds between file size checks - new files are scanned once their size stops changing |
 | `AUTO_REFRESH_INTERVAL` | `10` | Auto-refresh interval of web UI in seconds |
+| `ISO_SAMPLE_SIZE_MB` | `100` | Size in MB of the main-feature `.m2ts` sample extracted from Blu-ray disc images (`.iso`) for MediaInfo analysis |
 | `TMDB_API_KEY` | `` | TMDB API key for fetching movie posters (optional) |
 | `FANART_API_KEY` | `` | Fanart.tv API key for fetching thumb posters (optional) |
 | `IMAGE_SOURCE` | `tmdb` | Image source selection: `tmdb` (default) or `fanart` |
