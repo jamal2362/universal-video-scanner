@@ -78,10 +78,14 @@ The scanner automatically detects new files and analyzes them in the background.
 > hdrprobe reads the disc's playlists, automatically picks the main feature
 > (usually the largest main-movie `.m2ts`) and analyzes it as if the stream
 > file had been probed directly. Encrypted images are detected and rejected.
-> To read the audio/video tracks reliably, a short sample of the selected
-> main-feature `.m2ts` is extracted from the image (via `7z`) and analyzed
-> with MediaInfo - no need to extract or mount the full multi-gigabyte file.
-> The sample size is configurable via `ISO_SAMPLE_SIZE_MB` (default `100`).
+> To read the audio/video tracks reliably, a minimal BDMV structure is
+> reconstructed for the main feature - the playlist (`.mpls`) and clip info
+> (`.clpi`) plus a short sample of the main-feature `.m2ts` - and analyzed
+> with MediaInfo (via `7z`), no need to extract or mount the full
+> multi-gigabyte file. Because the audio languages live in the playlist,
+> `CONTENT_LANGUAGE` is honored for track selection just like for regular
+> files. The stream sample size is configurable via `ISO_SAMPLE_SIZE_MB`
+> (default `100`).
 
 ### Manual Scan
 
