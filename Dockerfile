@@ -1,14 +1,18 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
-# p7zip-full provides the `7z` binary used to extract a main-feature .m2ts
-# sample from Blu-ray disc images (.iso) for reliable MediaInfo analysis.
+# The `7zip` package (7-Zip 23.01+) provides the `7z` binary used to list and
+# extract the main-feature .m2ts sample + playlist from Blu-ray disc images
+# (.iso) for reliable MediaInfo analysis. It is required over the legacy
+# p7zip 16.02 (Ubuntu 22.04) because that release cannot read the UDF 2.50
+# file system of UHD Blu-ray images - extraction then fails silently and audio
+# codec/bitrate detection falls back to an unusable raw-.iso probe.
 RUN apt-get update && apt-get install -y \
     mediainfo \
-    p7zip-full \
+    7zip \
     python3 \
     python3-pip \
     wget \
@@ -26,8 +30,10 @@ RUN wget https://github.com/matthane/hdrprobe/releases/download/v0.8.0/hdrprobe-
 WORKDIR /app
 
 # Copy requirements and install Python dependencies
+# Ubuntu 24.04 ships a PEP 668 "externally-managed" Python, so allow pip to
+# install into the system environment inside this (already isolated) container.
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy application files
 COPY app.py .

@@ -86,6 +86,12 @@ The scanner automatically detects new files and analyzes them in the background.
 > `CONTENT_LANGUAGE` is honored for track selection just like for regular
 > files.
 >
+> **Requirement:** a modern 7-Zip (`7z` >= 21.01, the `7zip` package) is
+> needed. The legacy `p7zip` 16.02 cannot read the UDF 2.50 file system used
+> by UHD Blu-ray images, which makes stream extraction fail and audio detection
+> fall back to an unusable raw-image probe. The Docker image installs a
+> compatible version automatically.
+>
 > **Performance:** hdrprobe reads the image in place (memory-mapped, only the
 > bytes it needs), and MediaInfo only needs the stream headers, so just a
 > small prefix of the main feature is sampled - configurable via

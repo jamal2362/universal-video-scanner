@@ -965,10 +965,20 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
                     print("  [ISO] Audio tracks read via playlist (languages available)")
                 else:
                     tracks = []
-            if not tracks:
+            if not tracks and iso_prep and iso_prep.get('sample_file'):
                 # Fall back to the bare stream sample (no per-track language)
-                sample = iso_prep['sample_file'] if iso_prep else None
-                tracks = get_media_info(sample or file_path)
+                tracks = get_media_info(iso_prep['sample_file'])
+            if not tracks:
+                # No stream could be extracted from the disc image - almost
+                # always because 7z cannot read the image's UDF file system
+                # (legacy p7zip 16.02 fails on the UDF 2.50 of UHD Blu-rays).
+                # Probing the raw .iso yields no audio track, so warn clearly
+                # instead of silently reporting audio as "Unknown".
+                print(
+                    "  [ISO] Could not extract a stream from the disc image - "
+                    "audio codec/bitrate unavailable. Check that 7-Zip (7z) can "
+                    "read the image (UHD Blu-rays use UDF 2.50; 7-Zip >= 21.01 "
+                    "is required, p7zip 16.02 is not sufficient).")
         else:
             tracks = get_media_info(file_path)
 
