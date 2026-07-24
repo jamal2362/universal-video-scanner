@@ -64,6 +64,8 @@ body {
     color: var(--text);
     min-height: 100vh;
     padding: 20px;
+    display: flex;
+    flex-direction: column;
     line-height: 1.5;
     font-feature-settings: 'ss01' on, 'cv05' on;
     -webkit-font-smoothing: antialiased;
@@ -103,8 +105,16 @@ option {
 }
 
 .container {
+    width: 100%;
     max-width: 1460px;
     margin: 0 auto;
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.container > * {
+    flex-shrink: 0;
 }
 
 .visually-hidden {
@@ -969,7 +979,13 @@ tbody tr:hover td {
    ============================================================ */
 
 .empty-state {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     padding: 56px 24px;
+    margin-bottom: 14px;
     background: var(--surface);
     border: 1px dashed var(--border-strong);
     border-radius: var(--radius-lg);
@@ -1370,8 +1386,8 @@ tbody tr:hover td {
     align-items: center;
     flex-wrap: wrap;
     gap: 24px;
-    padding: 26px 20px;
-    margin-top: 22px;
+    padding: 26px 20px 6px;
+    margin-top: auto;
     border-top: 1px solid var(--border);
     color: var(--text-faint);
     font-size: 0.84rem;
@@ -1682,8 +1698,8 @@ tbody tr:hover td {
     .site-footer {
         flex-direction: column;
         gap: 12px;
-        padding: 20px 14px;
-        margin-top: 16px;
+        padding: 20px 14px 6px;
+        margin-top: auto;
         text-align: center;
     }
 }
