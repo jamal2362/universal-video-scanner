@@ -427,23 +427,25 @@ function updateProfileStats() {
         }
     });
     
-    // Build stats string (only show profiles with at least 1 title)
-    const statsArray = [];
-    if (stats.FEL > 0) statsArray.push(`FEL: <strong>${stats.FEL}</strong>`);
-    if (stats.MEL > 0) statsArray.push(`MEL: <strong>${stats.MEL}</strong>`);
-    if (stats['Profile 8'] > 0) statsArray.push(`P8: <strong>${stats['Profile 8']}</strong>`);
-    if (stats['Profile 5'] > 0) statsArray.push(`P5: <strong>${stats['Profile 5']}</strong>`);
-    if (stats['HDR10+'] > 0) statsArray.push(`HDR10+: <strong>${stats['HDR10+']}</strong>`);
-    if (stats['SL-HDR'] > 0) statsArray.push(`SL-HDR: <strong>${stats['SL-HDR']}</strong>`);
-    if (stats['HDR Vivid'] > 0) statsArray.push(`HDR Vivid: <strong>${stats['HDR Vivid']}</strong>`);
-    if (stats['HDR10'] > 0) statsArray.push(`HDR10: <strong>${stats['HDR10']}</strong>`);
-    if (stats['HLG'] > 0) statsArray.push(`HLG: <strong>${stats['HLG']}</strong>`);
-    if (stats['SDR'] > 0) statsArray.push(`SDR: <strong>${stats['SDR']}</strong>`);
+    // Build stat chips (only show profiles with at least 1 title)
+    const chipOrder = [
+        ['FEL', stats.FEL],
+        ['MEL', stats.MEL],
+        ['P8', stats['Profile 8']],
+        ['P5', stats['Profile 5']],
+        ['HDR10+', stats['HDR10+']],
+        ['SL-HDR', stats['SL-HDR']],
+        ['HDR Vivid', stats['HDR Vivid']],
+        ['HDR10', stats['HDR10']],
+        ['HLG', stats['HLG']],
+        ['SDR', stats['SDR']]
+    ];
+    const statsArray = chipOrder
+        .filter(([, count]) => count > 0)
+        .map(([label, count]) => `<span class="stat-chip">${label} <strong>${count}</strong></span>`);
     const profileStatsElement = document.getElementById('profileStats');
-    if (profileStatsElement && statsArray.length > 0) {
-        profileStatsElement.innerHTML = statsArray.join(' / ');
-    } else if (profileStatsElement) {
-        profileStatsElement.innerHTML = '';
+    if (profileStatsElement) {
+        profileStatsElement.innerHTML = statsArray.join('');
     }
 }
 
