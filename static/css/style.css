@@ -1552,22 +1552,11 @@ tbody tr:hover td {
     }
 
     .poster-img-wrapper {
-        width: auto;
-        max-width: 100%;
-        display: inline-block;
+        width: 100%;
+        display: block;
     }
 
     .poster-img {
-        width: 100%;
-        max-width: 420px;
-    }
-
-    .poster-fallback .poster-img-wrapper {
-        width: 100%;
-        max-width: 420px;
-    }
-
-    .poster-placeholder {
         width: 100%;
     }
 
@@ -1583,6 +1572,7 @@ tbody tr:hover td {
         width: 100%;
         min-width: 0;
         max-width: 100%;
+        margin: 3px 0;
         box-sizing: border-box;
         white-space: normal;
     }
