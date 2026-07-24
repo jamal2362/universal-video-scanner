@@ -646,17 +646,17 @@ tbody tr:hover td {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 200px;
+    width: 230px;
     max-width: 100%;
     box-sizing: border-box;
     margin: 3px 2px;
-    padding: 8px 12px;
+    padding: 8px 10px;
     border-radius: var(--radius-pill);
     font-weight: 600;
     font-size: 0.84rem;
     letter-spacing: 0.01em;
     border: 1px solid transparent;
-    white-space: normal;
+    white-space: nowrap;
     text-align: center;
     line-height: 1.35;
 }
@@ -1419,8 +1419,10 @@ tbody tr:hover td {
     .el-badge,
     .resolution-badge,
     .audio-badge {
-        width: 175px;
-        padding: 8px 10px;
+        width: 180px;
+        padding: 7px 8px;
+        font-size: 0.76rem;
+        letter-spacing: 0;
     }
 
     tbody tr td {
