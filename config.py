@@ -126,15 +126,13 @@ SCAN_WORKERS = max(1, _env_int('SCAN_WORKERS', 1))
 SCAN_SAVE_BATCH = max(1, _env_int('SCAN_SAVE_BATCH', 25))
 
 # Size (in MB) of the main-feature .m2ts sample extracted from a Blu-ray disc
-# image (.iso) for MediaInfo analysis. The prefix must be large enough for
-# MediaInfo to sync and identify the audio elementary streams - lossless
-# Blu-ray codecs (TrueHD, DTS-HD MA) have large, sparsely interleaved frames,
-# so a too-small prefix yields no audio track at all (codec "Unknown"). 100 MB
-# reliably covers the main feature without reading the whole (multi-gigabyte)
-# file. Point TMPDIR at a tmpfs (e.g. /dev/shm) to keep the sample in RAM and
-# avoid disk writes entirely. Lower this only if scan speed matters more than
-# reliable audio detection.
-ISO_SAMPLE_SIZE_MB = _env_int('ISO_SAMPLE_SIZE_MB', 100)
+# image (.iso) for MediaInfo analysis. MediaInfo reads the codec/channel info
+# from the clip's headers near the start, so a small prefix already identifies
+# every track (per-track language comes from the playlist, not the stream), and
+# there is no need to read the whole (multi-gigabyte) file. Point TMPDIR at a
+# tmpfs (e.g. /dev/shm) to keep the sample in RAM and avoid disk writes
+# entirely. Raise this only if a disc fails to be analyzed.
+ISO_SAMPLE_SIZE_MB = _env_int('ISO_SAMPLE_SIZE_MB', 16)
 
 # Bitrate estimation constant for format-level fallback
 # When only format-level bitrate is available, estimate audio as 10% of total
