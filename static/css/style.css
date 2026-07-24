@@ -1562,6 +1562,15 @@ tbody tr:hover td {
         max-width: 420px;
     }
 
+    .poster-fallback .poster-img-wrapper {
+        width: 100%;
+        max-width: 420px;
+    }
+
+    .poster-placeholder {
+        width: 100%;
+    }
+
     .poster-title {
         max-width: 100%;
         font-size: 1.05rem;
