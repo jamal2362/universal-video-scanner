@@ -63,6 +63,7 @@ body {
     background-attachment: fixed;
     color: var(--text);
     min-height: 100vh;
+    min-height: 100dvh;
     padding: 20px;
     display: flex;
     flex-direction: column;
