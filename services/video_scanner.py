@@ -331,6 +331,109 @@ def _extract_iso_member(iso_path, member, dest_file, max_bytes=None):
     return -1
 
 
+def _read_iso_member(iso_path, member):
+    """
+    Read a whole (small) member out of the disc image into memory using 7z.
+
+    Used for the tiny .mpls playlist files. Returns the bytes, or b'' on
+    failure.
+    """
+    try:
+        result = subprocess.run(
+            ['7z', 'e', '-so', iso_path, member],
+            capture_output=True,
+            timeout=60)
+        if result.returncode == 0:
+            return result.stdout or b''
+        stderr = (result.stderr or b'').decode('utf-8', 'replace').strip()
+        print(f"  [ISO] 7z read failed for {member}: {stderr}")
+    except FileNotFoundError:
+        print("  [ISO] 7z (p7zip) not installed / not available in PATH")
+    except subprocess.TimeoutExpired:
+        print(f"  [ISO] 7z read timed out for {member}")
+    except Exception as e:
+        print(f"  [ISO] Error reading {member}: {e}")
+    return b''
+
+
+def _mpls_referenced_clips(mpls_bytes):
+    """
+    Return the set of clip IDs (5-char base names, e.g. '00800') referenced by
+    a Blu-ray playlist.
+
+    In an .mpls each PlayItem stores the clip name as 5 ASCII characters
+    immediately followed by the codec identifier 'M2TS', so every occurrence of
+    'M2TS' is preceded by the referenced clip's base name. This enumerates the
+    references without a full playlist parse.
+    """
+    clips = set()
+    marker = b'M2TS'
+    idx = mpls_bytes.find(marker)
+    while idx != -1:
+        if idx >= 5:
+            name = mpls_bytes[idx - 5:idx]
+            try:
+                clips.add(name.decode('ascii'))
+            except UnicodeDecodeError:
+                pass
+        idx = mpls_bytes.find(marker, idx + 1)
+    return clips
+
+
+def _pick_playlist_for_clip(iso_path, playlists, clip_base, hint=None):
+    """
+    Pick the .mpls playlist that references the selected main-feature clip.
+
+    MediaInfo can only read a clip's audio tracks (codec, channels and, via the
+    playlist, per-track language) when it is pointed at a playlist that actually
+    references that clip. Picking the largest .mpls blindly can land on a
+    'play all' / menu playlist referencing other clips we did not extract,
+    leaving MediaInfo unable to resolve any audio track.
+
+    ``hint`` (hdrprobe's selected playlist) wins if it references the clip.
+    Otherwise, among the playlists that reference the clip, the one referencing
+    the fewest clips is preferred - that is the pure main-feature playlist
+    rather than a compilation playlist - tie-broken by larger file (more
+    metadata). Falls back to the largest playlist if none reference the clip.
+
+    Returns ``(member, bytes)`` for the chosen playlist, or ``(None, b'')``.
+    """
+    if not playlists:
+        return None, b''
+
+    hint_base = os.path.basename(hint).lower() if hint else None
+
+    referencing = []  # (num_clips, size, member, data)
+    hint_match = None
+    for member, size in playlists:
+        data = _read_iso_member(iso_path, member)
+        if not data:
+            continue
+        clips = _mpls_referenced_clips(data)
+        if clip_base in clips:
+            entry = (len(clips), size, member, data)
+            referencing.append(entry)
+            if hint_base and os.path.basename(member).lower() == hint_base:
+                hint_match = entry
+
+    # hdrprobe's playlist wins when it references the clip
+    if hint_match:
+        return hint_match[2], hint_match[3]
+
+    if referencing:
+        # Fewest referenced clips = pure main-feature playlist (not a 'play all'
+        # / menu playlist); tie-break on larger file (more metadata).
+        referencing.sort(key=lambda e: (e[0], -e[1]))
+        best = referencing[0]
+        return best[2], best[3]
+
+    # No playlist references the clip - fall back to the largest one so the
+    # language attempt still happens; the caller falls back to the raw stream
+    # sample if this yields no usable tracks.
+    member = max(playlists, key=lambda entry: entry[1])[0]
+    return member, _read_iso_member(iso_path, member)
+
+
 def prepare_iso_main_feature(iso_path, clip_hint=None, playlist_hint=None):
     """
     Reconstruct a minimal BDMV structure for a disc image's main feature so
@@ -373,14 +476,25 @@ def prepare_iso_main_feature(iso_path, clip_hint=None, playlist_hint=None):
         shutil.rmtree(temp_dir, ignore_errors=True)
         return None
 
-    # Main playlist (carries the per-track audio language codes)
+    # Main playlist (carries the per-track audio language codes). Pick the
+    # playlist that actually references the sampled clip so MediaInfo can
+    # resolve its CLPI/stream - the largest .mpls is often a 'play all' / menu
+    # playlist that references other clips, which leaves MediaInfo unable to
+    # read any audio track.
     playlist_file = None
-    playlist_member = _pick_member(_members_with_ext(entries, '.mpls'), playlist_hint)
-    if playlist_member:
+    playlist_member, playlist_bytes = _pick_playlist_for_clip(
+        iso_path, _members_with_ext(entries, '.mpls'), clip_base, playlist_hint)
+    if playlist_member and playlist_bytes:
         dest = os.path.join(playlist_dir, os.path.basename(playlist_member))
-        if _extract_iso_member(iso_path, playlist_member, dest) > 0:
+        # The bytes were already read while selecting the playlist - write them
+        # straight out instead of extracting the member a second time.
+        try:
+            with open(dest, 'wb') as out:
+                out.write(playlist_bytes)
             playlist_file = dest
             print(f"  [ISO] Using playlist for language info: {os.path.basename(playlist_member)}")
+        except OSError as e:
+            print(f"  [ISO] Could not write playlist {os.path.basename(playlist_member)}: {e}")
 
     # Clip info matching the sampled stream (helps MediaInfo resolve the playlist)
     clpi_member = next(
@@ -851,10 +965,20 @@ def scan_video_file(file_path, scanned_paths, scanned_files, scan_lock, save_dat
                     print("  [ISO] Audio tracks read via playlist (languages available)")
                 else:
                     tracks = []
-            if not tracks:
+            if not tracks and iso_prep and iso_prep.get('sample_file'):
                 # Fall back to the bare stream sample (no per-track language)
-                sample = iso_prep['sample_file'] if iso_prep else None
-                tracks = get_media_info(sample or file_path)
+                tracks = get_media_info(iso_prep['sample_file'])
+            if not tracks:
+                # No stream could be extracted from the disc image - almost
+                # always because 7z cannot read the image's UDF file system
+                # (legacy p7zip 16.02 fails on the UDF 2.50 of UHD Blu-rays).
+                # Probing the raw .iso yields no audio track, so warn clearly
+                # instead of silently reporting audio as "Unknown".
+                print(
+                    "  [ISO] Could not extract a stream from the disc image - "
+                    "audio codec/bitrate unavailable. Check that 7-Zip (7z) can "
+                    "read the image (UHD Blu-rays use UDF 2.50; 7-Zip >= 21.01 "
+                    "is required, p7zip 16.02 is not sufficient).")
         else:
             tracks = get_media_info(file_path)
 

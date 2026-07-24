@@ -126,11 +126,12 @@ SCAN_WORKERS = max(1, _env_int('SCAN_WORKERS', 1))
 SCAN_SAVE_BATCH = max(1, _env_int('SCAN_SAVE_BATCH', 25))
 
 # Size (in MB) of the main-feature .m2ts sample extracted from a Blu-ray disc
-# image (.iso) for MediaInfo analysis. MediaInfo only needs the stream headers
-# at the start of the clip, so a small prefix identifies every track reliably
-# without reading the whole (multi-gigabyte) file - keeping the scan fast and
-# light. Point TMPDIR at a tmpfs (e.g. /dev/shm) to keep the sample in RAM and
-# avoid disk writes entirely. Raise this only if a disc fails to be detected.
+# image (.iso) for MediaInfo analysis. MediaInfo reads the codec/channel info
+# from the clip's headers near the start, so a small prefix already identifies
+# every track (per-track language comes from the playlist, not the stream), and
+# there is no need to read the whole (multi-gigabyte) file. Point TMPDIR at a
+# tmpfs (e.g. /dev/shm) to keep the sample in RAM and avoid disk writes
+# entirely. Raise this only if a disc fails to be analyzed.
 ISO_SAMPLE_SIZE_MB = _env_int('ISO_SAMPLE_SIZE_MB', 16)
 
 # Bitrate estimation constant for format-level fallback

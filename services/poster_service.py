@@ -6,6 +6,7 @@ Handles poster caching and downloading
 """
 import os
 import hashlib
+import tempfile
 from services.tmdb_service import is_valid_tmdb_url
 from services.fanart_service import is_valid_fanart_url
 
@@ -51,9 +52,23 @@ def download_and_cache_poster(poster_url, cache_filename, poster_cache_dir):
         print(f"  [CACHE] Downloading poster: {poster_url}")
         response = requests.get(poster_url, timeout=10)
         if response.status_code == 200:
-            # Save to cache
-            with open(cache_path, 'wb') as f:
-                f.write(response.content)
+            # Write to a unique temp file first, then atomically move it into
+            # place. This keeps concurrent scans (SCAN_WORKERS > 1) safe: if two
+            # files share a TMDB id and are cached at the same time, each writes
+            # its own temp file and the final rename is atomic, so a partially
+            # written image is never left in the cache or served.
+            fd, tmp_path = tempfile.mkstemp(
+                dir=poster_cache_dir, prefix=cache_filename + '.', suffix='.tmp')
+            try:
+                with os.fdopen(fd, 'wb') as f:
+                    f.write(response.content)
+                os.replace(tmp_path, cache_path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
             print(f"  [CACHE] Poster cached: {cache_filename}")
             return f'/poster/{cache_filename}'
     except requests.exceptions.Timeout:

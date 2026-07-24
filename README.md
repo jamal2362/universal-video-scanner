@@ -86,6 +86,12 @@ The scanner automatically detects new files and analyzes them in the background.
 > `CONTENT_LANGUAGE` is honored for track selection just like for regular
 > files.
 >
+> **Requirement:** a modern 7-Zip (`7z` >= 21.01, the `7zip` package) is
+> needed. The legacy `p7zip` 16.02 cannot read the UDF 2.50 file system used
+> by UHD Blu-ray images, which makes stream extraction fail and audio detection
+> fall back to an unusable raw-image probe. The Docker image installs a
+> compatible version automatically.
+>
 > **Performance:** hdrprobe reads the image in place (memory-mapped, only the
 > bytes it needs), and MediaInfo only needs the stream headers, so just a
 > small prefix of the main feature is sampled - configurable via
@@ -197,7 +203,7 @@ docker-compose up -d
 |----------|---------|-------------|
 | `FILE_WRITE_DELAY` | `5` | Interval in seconds between file size checks - new files are scanned once their size stops changing |
 | `AUTO_REFRESH_INTERVAL` | `10` | Auto-refresh interval of web UI in seconds |
-| `ISO_SAMPLE_SIZE_MB` | `100` | Size in MB of the main-feature `.m2ts` sample extracted from Blu-ray disc images (`.iso`) for MediaInfo analysis |
+| `ISO_SAMPLE_SIZE_MB` | `16` | Size in MB of the main-feature `.m2ts` sample extracted from Blu-ray disc images (`.iso`) for MediaInfo analysis |
 | `SCAN_WORKERS` | `1` | Files probed at once during a bulk scan. `1` = strictly sequential and light (best for a single spinning disk / NAS). Raise to `2`-`4` for SSD / NVMe / fast storage to scan a large library faster |
 | `SCAN_SAVE_BATCH` | `25` | How many newly scanned files to buffer before writing the database. Avoids rewriting the whole database after every file on a large library; an interrupted scan re-reads at most this many files. `1` persists after every file |
 | `TMDB_API_KEY` | `` | TMDB API key for fetching movie posters (optional) |
