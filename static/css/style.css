@@ -136,7 +136,7 @@ option {
 
 header {
     position: sticky;
-    top: 0;
+    top: 12px;
     z-index: 100;
     display: flex;
     align-items: center;
@@ -1441,6 +1441,7 @@ tbody tr:hover td {
     }
 
     header {
+        top: 8px;
         padding: 10px 14px;
         margin-bottom: 12px;
     }
