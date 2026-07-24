@@ -917,21 +917,21 @@ tbody tr:hover td {
     color: #a5b4fc;
 }
 
-.filename-fallback {
-    display: inline-block;
-    max-width: 260px;
-    text-align: center;
-    overflow-wrap: break-word;
-    word-break: break-word;
-    font-weight: 500;
-    font-size: 0.92rem;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: color 0.15s ease;
+.poster-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(130% 140% at 88% 8%, rgba(236, 72, 153, 0.22), transparent 55%),
+        linear-gradient(135deg, #272c55 0%, #462e6e 100%);
+    color: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--border-strong);
 }
 
-.filename-fallback:hover {
-    color: #a5b4fc;
+.poster-fallback .poster-title {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: 0.92rem;
 }
 
 .tmdb-badge {
