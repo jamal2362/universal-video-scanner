@@ -134,6 +134,16 @@ option {
    Header
    ============================================================ */
 
+header::before {
+    content: "";
+    position: absolute;
+    top: -14px;
+    left: -20px;
+    right: -20px;
+    height: 14px;
+    background: var(--bg);
+}
+
 header {
     position: sticky;
     top: 12px;
@@ -1403,6 +1413,36 @@ tbody tr:hover td {
 /* ============================================================
    Responsive
    ============================================================ */
+
+/* Compact table for narrow desktop widths / phones in landscape:
+   without this the badge min-widths force the table wider than
+   the container and rows overflow horizontally. */
+@media screen and (max-width: 1150px) and (min-width: 916px) {
+    .poster-img {
+        width: 220px;
+    }
+
+    .poster-title {
+        max-width: 220px;
+    }
+
+    .hdr-badge,
+    .el-badge,
+    .resolution-badge,
+    .audio-badge {
+        min-width: 0;
+        white-space: normal;
+        padding: 8px 12px;
+    }
+
+    tbody tr td {
+        padding: 16px 10px;
+    }
+
+    thead th {
+        padding: 10px 10px 2px;
+    }
+}
 
 @media screen and (max-width: 915px) {
     body {
