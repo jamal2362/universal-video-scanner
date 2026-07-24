@@ -1223,10 +1223,11 @@ tbody tr:hover td {
 }
 
 .dialog-plot-text {
-    color: var(--text-muted);
+    color: var(--text);
     line-height: 1.6;
     text-align: center;
-    font-size: 0.9rem;
+    font-size: 0.93rem;
+    font-weight: 500;
     max-width: 42ch;
 }
 
