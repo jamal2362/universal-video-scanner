@@ -134,19 +134,9 @@ option {
    Header
    ============================================================ */
 
-header::before {
-    content: "";
-    position: absolute;
-    top: -14px;
-    left: -20px;
-    right: -20px;
-    height: 14px;
-    background: var(--bg);
-}
-
 header {
     position: sticky;
-    top: 12px;
+    top: 0;
     z-index: 100;
     display: flex;
     align-items: center;
@@ -1450,7 +1440,6 @@ tbody tr:hover td {
     }
 
     header {
-        top: 8px;
         padding: 10px 14px;
         margin-bottom: 12px;
     }
@@ -1575,15 +1564,21 @@ tbody tr:hover td {
         display: none;
     }
 
+    /* Poster and badges share the same centered column width so they
+       stay exactly as wide as each other without ballooning on wider
+       portrait screens (tablets, large phones). */
     td[data-label-i18n="table_header_hdr"],
     td[data-label-i18n="table_header_resolution"],
     td[data-label-i18n="table_header_audio"] {
         text-align: center;
         padding-left: 0;
         width: 100%;
+        max-width: 560px;
+        margin: 0 auto;
         display: flex;
         flex-direction: column;
         align-items: center;
+        box-sizing: border-box;
     }
 
     td:first-child {
@@ -1602,6 +1597,9 @@ tbody tr:hover td {
 
     .poster-container {
         width: 100%;
+        max-width: 560px;
+        margin-left: auto;
+        margin-right: auto;
         gap: 12px;
         margin-bottom: 8px;
     }
