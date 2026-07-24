@@ -646,21 +646,19 @@ tbody tr:hover td {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 185px;
+    width: 200px;
     max-width: 100%;
+    box-sizing: border-box;
     margin: 3px 2px;
-    padding: 8px 16px;
+    padding: 8px 12px;
     border-radius: var(--radius-pill);
     font-weight: 600;
     font-size: 0.84rem;
     letter-spacing: 0.01em;
     border: 1px solid transparent;
-    white-space: nowrap;
-}
-
-.el-badge {
-    min-width: 0;
-    padding: 8px 14px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.35;
 }
 
 /* ---------- HDR formats ---------- */
@@ -1421,9 +1419,8 @@ tbody tr:hover td {
     .el-badge,
     .resolution-badge,
     .audio-badge {
-        min-width: 0;
-        white-space: normal;
-        padding: 8px 12px;
+        width: 175px;
+        padding: 8px 10px;
     }
 
     tbody tr td {
